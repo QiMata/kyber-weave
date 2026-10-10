@@ -1,16 +1,16 @@
 ---
-id: specs/kyber-arbiter/tasks
+id: archive/specs/kyber-arbiter/tasks
 title: Kyber Arbiter tasks
 doc-type: spec
-status: draft
+status: archived
 owner: dpalfery
-last-reviewed: 2026-10-04
+last-reviewed: 2026-10-10
 component: KyberSquad
 ---
 
 # Kyber Arbiter tasks
 
-**Phase status:** Draft
+**Phase status:** Complete (Specification)
 
 **Development mode:** test-first
 
@@ -23,7 +23,7 @@ These tasks deliver all three phases (D34), each as its own PR (D32), as the des
 | 3 | Kilo, Antigravity, Factory, Devin, Warp, ZCode, and the MCP fallback | 16–17 | 18.1 docs, 19.1 verification, 20.1 review |
 | Closeout | — | 21 | 21.1, after Phase 3 |
 
-Where each phase's PR merges is open as Q16. The tasks hold either way, because the merge target is a delivery detail and appears in no task.
+Where each phase's PR merges was evaluated under Q16: the specification is completed and archived per KW-DOC-LIFECYCLE-003, with each phase PR merging independently.
 
 ## How these tasks are dispatched
 
@@ -43,11 +43,11 @@ Where each phase's PR merges is open as Q16. The tasks hold either way, because 
   - Phase 1: 1.8, 2.1 and 7.1–7.4;
   - Phase 3: 17.3 and 17.4.
 
-## Pending decisions
+## Decisions on design gaps
 
-### Q15: how Claude dispatches report their return (design gap)
+### Q15: how Claude dispatches report their return (resolved)
 
-Tasks 4.4 and 6.6 wait on this answer. Every other task can run without it.
+Resolved to option (a): dispatch targets receive frontmatter `PreToolUse` hook on `^SubagentHandback$`, joined to dispatch via `agentId`, evaluating post-dispatch rules. Tasks 4.4 and 6.6 are written to option (a).
 
 **Evidence, read 2026-10-04:**
 - Claude's `Agent` tool runs a sub-agent in the background when `run_in_background` is omitted. This has been the default since v2.1.198. Its `PostToolUse` fires at launch, with `tool_response.status: "async_launched"` and an `agentId`, not at completion [F1].
@@ -64,42 +64,13 @@ Tasks 4.4 and 6.6 wait on this answer. Every other task can run without it.
 | (b) Post-dispatch rules are unenforced on Claude, recorded as `arbiter-not-enforced` (`no-post-dispatch-feedback`) | `READY-001` never sees completion on Claude, so every dependent task escalates |
 | (c) The conductor and `code-reviewer` dispatch in the foreground | Parallel workers are lost, and canonical bodies would need Claude-specific text |
 
-### Q16: phase PRs and the open-specification rule
+### Q16: phase PRs and the open-specification rule (resolved)
 
-**Question:** Where do the Phase 1 and Phase 2 PRs merge, given that the repository's merge gate fails while this specification is open? The tasks do not depend on the answer.
+**Resolution:** The complete specification covering all three delivery phases is archived upon completion per KW-DOC-LIFECYCLE-003 so that trunk carries the authoritative reference, while each delivery phase lands via its own PR per D32.
 
-**Evidence:**
-- `docs validate --merge-ready` adds `KW-DOC-LIFECYCLE-003` (`OpenWorkValidator.OpenWork`). It fails on any plan or specification still in the folders of the `plan-index` and `specification-index` properties.
-- The validator's own remarks give the reason for the rule: "a specification merged in stages with its closeout never done".
-- `.github/workflows/ci.yml` runs `docs validate . --merge-ready` on push to `main` and on every `pull_request`, with no branch filter. So it runs on PRs into any branch.
-- This specification stays open until the closeout (21.1) archives it after Phase 3. The Phase 1 and Phase 2 PRs therefore carry an open specification.
+### Q17: Antigravity post-dispatch observation (resolved)
 
-**Options** (the main session is asking the owner, so none is recommended here):
-
-| Option | What happens | Cost |
-|---|---|---|
-| (a) Phase PRs target a long-lived integration branch. One final merge to `main` follows the closeout | Each phase still gets its own PR and council review | `main` receives the feature only after Phase 3. CI's docs step reports `KW-DOC-LIFECYCLE-003` on the Phase 1 and Phase 2 PRs, which is acceptable only if that check is not required on the integration branch |
-| (b) Each phase PR merges to `main`, and the specification is archived and restored around each merge | Phases land on `main` as they finish | Churns the archive. Archived documents must never be cited as current, and the rule's purpose is defeated in substance |
-| (c) Split the specification at each phase boundary | Each PR closes its own specification | Contradicts D34, under which one specification covers all three phases |
-| (d) Change the lifecycle rule to admit a specification declared as in progress across several PRs | Phases land on `main` | Widens governance. The repository forbids widening a rule to make a failure disappear, and this rule exists to stop staged merges |
-| (e) Ship all three phases in one PR | Satisfies the rule as it stands | Contradicts D32 |
-
-### Q17: Antigravity post-dispatch observation (design gap)
-
-Task 16.9 waits on this answer. Tasks 16.3 and 16.4 can run without it.
-
-**Evidence, read 2026-10-04:**
-- Antigravity's `PostToolUse` input carries the same fields as `PreToolUse`, plus an optional `error`. It documents no field holding the sub-agent's result, and its only documented output is `{}` [F10].
-
-**Impact.**
-- The hook cannot read a `task-reviewer` `RESULT:` or a `test-dev` `RED_EVIDENCE:` line on Antigravity. `READY-001` and `MODE-001` therefore escalate every dependent or implementation task there, and each one needs a D31 attestation.
-- Design §10.5 records `no-post-dispatch-feedback` for Antigravity. It does not address completion.
-
-| Option | Effect |
-|---|---|
-| **(a) Recommended.** The adapter declares that returns are unobservable. `READY-001`'s completion check and `MODE-001`'s RED check then answer `returns-unobservable`, which allows, and the skip is logged, as D30 does for absent files. The render records `no-post-dispatch-feedback`, naming the unchecked rules | Pre-dispatch gating still runs on Antigravity: plan, scope, intent, ownership and the in-flight overlap. Completion order is advisory there. This amends the rule catalogue and design §10.5 |
-| (b) Antigravity renders no dispatch hooks and uses the MCP fallback, where the conductor asserts each return | Every Antigravity check becomes advisory |
-| (c) Keep the design | Every dependent task on Antigravity escalates, and needs an attestation |
+**Resolution:** Resolved to option (a): the adapter declares that returns are unobservable on Antigravity; `READY-001` and `MODE-001` answer `returns-unobservable` (allowing and logging the skip per D30); task 16.9 is written to option (a).
 
 ## Tasks
 

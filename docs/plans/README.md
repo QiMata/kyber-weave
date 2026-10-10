@@ -4,7 +4,7 @@ title: Kyber-Weave Plan Inventory
 doc-type: index
 status: current
 owner: dpalfery
-last-reviewed: 2026-10-07
+last-reviewed: 2026-10-10
 ---
 
 # Kyber-Weave Plan Inventory
@@ -27,11 +27,7 @@ Closeout explicitly distinguishes between two waiver categories:
 
 ## Active Plans
 
-| Plan | Status | Date | Development mode | Goal |
-|---|---|---|---|---|
-| [2026-10-01-kyber-arbiter.md](2026-10-01-kyber-arbiter.md) | Draft | 2026-10-01 | test-first | Kyber Arbiter: decision gates that harness hooks call at Kyber-Squad decision points. Each question is answered in three steps: plain code, then a decision model (TypeSafe JEV in the cloud, or `nimble` / `tev1` on a local Ollama, through the same `/v1/systemone` API), then a reasoning agent (`architect` for delegations, the refutation lens for review). The gates check the conductor's delegations against the plan, skip review lenses and refutations that are not needed, and scope gates to changed paths. Where a harness cannot hook a decision point, the agent calls the same engine through an MCP server. Development mode: test-first. |
-
-Earlier history: pipeline T9 and spine S-docs harvested 2026-09-13 into [dash/architecture.md](../dash/architecture.md), [dash/runbook.md](../dash/runbook.md), [dash/telemetry-inventory.md](../dash/telemetry-inventory.md), [ADR 0016](../adr/0016-kyberdash-harness-source-refresh.md), and [ADR 0018](../adr/0018-kyberdash-content-retention-purge.md). ADRs 0012–0015 remain the spine harvest (0014 notes that `kyber purge-content` was not shipped). Residual risks (T8 live-source coverage, findings client-side harness filter) live on the archived plans — they are not shipped claims.
+None. Earlier history: pipeline T9 and spine S-docs harvested 2026-09-13 into [dash/architecture.md](../dash/architecture.md), [dash/runbook.md](../dash/runbook.md), [dash/telemetry-inventory.md](../dash/telemetry-inventory.md), [ADR 0016](../adr/0016-kyberdash-harness-source-refresh.md), and [ADR 0018](../adr/0018-kyberdash-content-retention-purge.md). ADRs 0012–0015 remain the spine harvest (0014 notes that `kyber purge-content` was not shipped). Residual risks (T8 live-source coverage, findings client-side harness filter) live on the archived plans — they are not shipped claims.
 
 
 
@@ -39,6 +35,7 @@ Earlier history: pipeline T9 and spine S-docs harvested 2026-09-13 into [dash/ar
 
 | Plan | Status | Date | Archive Date | Canonical Docs / Harvested ADRs | Goal |
 |---|---|---|---|---|---|
+| [2026-10-01-kyber-arbiter.md](../archive/plans/2026-10-01-kyber-arbiter.md) | Complete | 2026-10-01 | 2026-10-10 | [docs/archive/specs/kyber-arbiter/](../archive/specs/kyber-arbiter/README.md); no ADR — decisions recorded in the plan and specification | Kyber Arbiter: decision gates that harness hooks call at Kyber-Squad decision points. Requirements, design, and three-phase task list specified and approved in docs/archive/specs/kyber-arbiter/. Closed and archived per KW-DOC-LIFECYCLE-003. |
 | [2026-10-09-issue-319-folder-import-opt-in.md](../archive/plans/2026-10-09-issue-319-folder-import-opt-in.md) | Complete | 2026-10-09 | 2026-10-10 | [rules/kyberdash-display-layer.md](../rules/kyberdash-display-layer.md), [ADR 0033](../adr/0033-kyberdash-surfaces-are-display-layers.md) (supersedes ADR 0023 decision 3 and its no-shared-server Consequence), ADR 0032 / 0016 / 0031 amended in place per Q3, [dash/architecture.md](../dash/architecture.md), [dash/runbook.md](../dash/runbook.md), root [`AGENTS.md`](../../AGENTS.md) and new `dash/AGENTS.md` / `dash/tray/AGENTS.md`; decisions R1, D1–D5, Q1–Q6, A1–A20, AP1 recorded in the plan | Fix [issue #319](https://github.com/dpalfery/kyber-weave/issues/319): after a KyberDash wipe only OTel repopulates the store; folder import becomes opt-in (one-off import action with a week window, plus a separate canon.db `metadata` setting for scheduled folder refresh). Applies the user's display-layer rule: the tray and web dashboard become pure display layers, and the scheduler, jobs, pause and receiver hosting move into the shared `kyberdash web` application behind one `/api/kyber/*` API and one `canon.db` path resolver; the web gains Pause / Refresh / import controls; a guard test enforces the rule. Replaces the re-ingest item of [#318](https://github.com/dpalfery/kyber-weave/issues/318). Complete: T1–T23 test-first, every task audited, four-lens whole-change review with findings fixed. Archived per KW-DOC-LIFECYCLE-003. |
 | [2026-10-09-issue-312-clean-kyberdash-db.md](../archive/plans/2026-10-09-issue-312-clean-kyberdash-db.md) | Complete | 2026-10-09 | 2026-10-09 | [ADR 0032](../adr/0032-kyberdash-user-initiated-clean.md) (narrowly supersedes ADR 0016 D6 and ADR 0018 D3 for the confirmed clean only), [dash/architecture.md](../dash/architecture.md) (clean section, `/api/kyber/clean` row, seven tray commands), [dash/runbook.md](../dash/runbook.md) (`dash clean` usage); decisions D1–D10 recorded in the plan | Fix [issue #312](https://github.com/dpalfery/kyber-weave/issues/312): user-initiated clean of the KyberDash database (wipe by harness or all) from the web dash and the tray, via one central engine module, with receiver pause, checkpoint reset, and automatic 7-day re-ingest. Complete: T1–T10 test-first. Archived per KW-DOC-LIFECYCLE-003. |
 | [2026-10-05-doctor-receipt-lookup.md](../archive/plans/2026-10-05-doctor-receipt-lookup.md) | Complete | 2026-10-05 | 2026-10-05 | None — bug fix under existing Squad deployment architecture; decisions D1–D4 recorded in the plan | Fix [issue #283](https://github.com/dpalfery/kyber-weave/issues/283): squad doctor --global unmanaged file checks use the same receipt lookup as status to avoid false positive collisions on clean install. Complete: T1–T5 test-first. Archived per KW-DOC-LIFECYCLE-003. |

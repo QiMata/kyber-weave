@@ -1,10 +1,10 @@
 ---
-id: specs/kyber-arbiter/design
+id: archive/specs/kyber-arbiter/design
 title: Kyber Arbiter design
 doc-type: spec
-status: draft
+status: archived
 owner: dpalfery
-last-reviewed: 2026-10-03
+last-reviewed: 2026-10-10
 component: KyberSquad
 ---
 
@@ -846,13 +846,13 @@ Hooks are rendered only when the project's `arbiter.enabled` is `true` (Req 22.2
   - **Fields.** Only documented fields are written, and no sentinel key. JSON hook files carry no comments, so markers in the style of the Config Reg block cannot be used.
 - **Receipt v3.**
   - `kyber-squad.receipt/v3` adds `blocks`: for each owned entry, the file, its JSON pointer and its canonical digest.
-  - It is written only when a receipt carries a block. Receipts without blocks stay byte-identical v1 or v2, following the precedent of [ADR 0024](../../adr/0024-squad-global-receipt-layout-marker.md).
+  - It is written only when a receipt carries a block. Receipts without blocks stay byte-identical v1 or v2, following the precedent of [ADR 0024](../../../adr/0024-squad-global-receipt-layout-marker.md).
   - Older CLIs refuse a v3 receipt with exit 1.
 - **Update, uninstall and drift.**
   - Update rewrites the block.
   - An owned entry edited by hand is drift. `squad status` and `squad doctor` report it (Req 8.4), and update preserves it unless `--replace-managed` is given.
   - Uninstall removes only the owned entries. It deletes the file only if Squad created it and no hook remains.
-- **ADR 0029** records the exception to the rule that Squad does not own settings files ([ADR 0026](../../adr/0026-kyber-utilities-owned-files-not-settings.md)) (Req 8.3).
+- **ADR 0029** records the exception to the rule that Squad does not own settings files ([ADR 0026](../../../adr/0026-kyber-utilities-owned-files-not-settings.md)) (Req 8.3).
 
 ### 10.5 Degradations
 
@@ -1142,7 +1142,7 @@ All read at `rev=13dcb73`.
 | `SquadRenderRequest` (37 callers) and `SquadRenderResult` are positional records | New members are optional and trailing |
 | `SquadDegradationRecord` has `Details`. The receipt's `SquadDegradation(Target, Subject, Code)` does not | The reason lives in `Details` |
 | `HotshotGoldenContractTests` pins every agent body except architect, code-reviewer, conductor, product-owner and task-reviewer, and every skill outside its evolved list | §10.9 |
-| Release lists its assets explicitly, and the checksum verifier enumerates every one ([ADR 0027](../../adr/0027-release-integrity-checksums-signing-deferred.md)) | §1.11 |
+| Release lists its assets explicitly, and the checksum verifier enumerates every one ([ADR 0027](../../../adr/0027-release-integrity-checksums-signing-deferred.md)) | §1.11 |
 | `OpenAiCompatibleEmbeddingGenerator` takes an injected `HttpMessageHandler` | The provider precedent |
 | `artifacts/` is ignored by git here, but not necessarily in a host | `KW-ARB-LOG-001` |
 | The `code-review` skill writes `findings.json` at the repository root | §10.9 moves it under `artifacts/` |

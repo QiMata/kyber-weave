@@ -1,12 +1,12 @@
 ---
-id: plans/2026-10-01-kyber-arbiter
+id: archive/plans/2026-10-01-kyber-arbiter
 title: Kyber Arbiter — three-step decision gates for Kyber-Squad delegation and review
 doc-type: plan
-status: draft
+status: archived
 component: KyberSquad
 owner: dpalfery
 created: 2026-10-01
-last-reviewed: 2026-10-02
+last-reviewed: 2026-10-10
 development-mode: test-first
 ---
 
@@ -14,21 +14,9 @@ development-mode: test-first
 
 ## Status
 
-**Draft — not executable.** The owner approved design decisions D1–D23 in conversation on
-2026-10-01 and 2026-10-02. On 2026-10-02 `architect` did four things:
+**Complete / Superseded by Specification.** Design decisions D1–D23 approved on 2026-10-01/02. Follow-on questions Q9–Q11 and the Phase-1 open question (Q15) resolved. The full feature requirements, design, and three-phase task list are specified and approved in [`docs/archive/specs/kyber-arbiter/`](../specs/kyber-arbiter/README.md). Archived per KW-DOC-LIFECYCLE-003.
 
-- finished discovery against `rev=13dcb73`;
-- corrected two harness facts from vendor documentation;
-- replaced the outline Test contract with runnable rows;
-- rewrote the task list against exact files and symbols, then audited the dependency graph.
-
-Two things must happen before this plan can be Ready:
-
-- the owner answers the open questions in the [decision ledger](#decision-ledger-draft-only)
-  (Q9, Q10 and Q11);
-- the owner gives **approve and execute**.
-
-Development mode: `test-first`. This is the default; the owner has not opted out.
+Development mode: `test-first`.
 
 ## Problem and goal
 
@@ -38,7 +26,7 @@ Development mode: `test-first`. This is the default; the owner has not opted out
   plan. Only its own instructions enforce that ("An approved Ready artifact is execution
   authority"). Nothing compares the delegation with the plan task it claims to execute.
 - **Ready queue.** The rule in
-  [execution-and-review.md](../../products/kyber-squad/agents/conductor/references/execution-and-review.md)
+  [execution-and-review.md](../../../products/kyber-squad/agents/conductor/references/execution-and-review.md)
   is held only by the conductor's attention: dependencies must be complete, and file scope
   must not overlap work in flight.
 - **Delegation rosters.** Claude ignores `Agent(roster)` for nested sub-agents, and
@@ -53,7 +41,7 @@ Development mode: `test-first`. This is the default; the owner has not opted out
   - Every gate runs whichever stacks the change touched.
 
 The end-of-run verdict is already computed by the
-[`VerdictEngine`](../../src/KyberWeave.Core/Review/VerdictEngine.cs). Everything upstream of
+[`VerdictEngine`](../../../src/KyberWeave.Core/Review/VerdictEngine.cs). Everything upstream of
 it is still judgement.
 
 **Goal.** Kyber Arbiter is a rule engine, configured in `.kyber-weave/kyber-weave.yml` and
@@ -72,13 +60,13 @@ for its JEV model:
 | ID | Decision | Approval provenance |
 |---|---|---|
 | D1 | **Three steps.** Plain code answers every exact fact. A decision model answers judgements about meaning. A reasoning agent answers what the model flags or is unsure about. One confident red flag is enough to escalate; signals are not averaged. Thresholds are per rule and scale with the cost of a wrong answer. | The owner first chose "rules only" (2026-10-01). Revised by the owner the same day after reviewing TypeSafe's skill, its confidence guidance and its escalation cookbook ([sources](#sources)). |
-| D2 | **A separate binary, `kyber-weave-arbiter`, carries the machine surfaces**: `hook` (harness hook adapter) and `serve` (stdio MCP server). The human surfaces are `kyber-weave arbiter …` in the existing CLI. The engine lives in Core. | Owner, 2026-10-01, chose a separate binary. The CLI split follows [the MCP project's stdout rule](../../src/KyberWeave.Mcp/AGENTS.md): no Spectre.Console in a binary whose stdout is a protocol. |
+| D2 | **A separate binary, `kyber-weave-arbiter`, carries the machine surfaces**: `hook` (harness hook adapter) and `serve` (stdio MCP server). The human surfaces are `kyber-weave arbiter …` in the existing CLI. The engine lives in Core. | Owner, 2026-10-01, chose a separate binary. The CLI split follows [the MCP project's stdout rule](../../../src/KyberWeave.Mcp/AGENTS.md): no Spectre.Console in a binary whose stdout is a protocol. |
 | D3 | **Harness hooks enforce; agents do not trigger the Arbiter.** | Owner, 2026-10-01: "agents should not be causing the triggers … hooks (deterministic)". |
 | D4 | **Fallback where a harness cannot hook the decision point.** The conductor calls the Arbiter MCP server before dispatching. `code-reviewer` calls it once before fan-out on harnesses whose hooks do not fire inside sub-agents. | Owner, 2026-10-01 (answers on harness gaps and on the review gap). |
 | D5 | **Fail-closed command hooks.** Any internal error produces an explicit block with a reason, never a silent pass. On conductor triggers it escalates (D15) with `ANSWER: error`. | Owner, 2026-10-01. |
 | D6 | **Hooks on every harness that supports them.** Two Copilot surfaces are priority: VS Code and Copilot CLI. | Owner, 2026-10-01. |
 | D7 | **Support is claimed from vendor documentation.** Misbehaviour is fixed as a defect, not pre-verified with live probes. | Owner, 2026-10-01: "trust the docs, fix as bugs appear". |
-| D8 | **Squad owns a marked block in shared hook files.** Where a harness keeps hooks in one shared file, Squad writes a marked, receipt-tracked block into it, like the Config Reg block. This needs an ADR, because it crosses the "Squad does not own settings files" boundary in [the Squad architecture](../kyber-squad/architecture.md) and ADR 0026's owned-files rule. | Owner, 2026-10-01. |
+| D8 | **Squad owns a marked block in shared hook files.** Where a harness keeps hooks in one shared file, Squad writes a marked, receipt-tracked block into it, like the Config Reg block. This needs an ADR, because it crosses the "Squad does not own settings files" boundary in [the Squad architecture](../../kyber-squad/architecture.md) and ADR 0026's owned-files rule. | Owner, 2026-10-01. |
 | D9 | **Plans are parsed as authored**, using C#, Markdig and regex at evaluation time. No generated artifacts. | Owner, 2026-10-01: "not crazy about creating a bunch of assets". |
 | D10 | **`undecidable` never allows** on conductor triggers. The dispatch is blocked and escalated (D15). A plan with no parseable tasks is itself escalated (`KW-ARB-PLAN-001`), because its tasks are what tell the conductor which agents to dispatch. | Owner, 2026-10-01. |
 | D11 | **Code review uses hooks, with the refutation lens as step 2.** A lens spawn the Arbiter is confident does not apply is denied with a reason the reviewer records as `SKIPPED`. A finding the Arbiter verifies with high confidence skips its refutation spawn. Everything else goes to the lens or refutation pass as today. The Arbiter never drops a finding on a model's answer alone. | Owner, 2026-10-01 (hooks only; refutation lens as review's step 2, replacing open question Q5). |
@@ -95,17 +83,18 @@ for its JEV model:
 | D22 | **Install and update come in three parts:**<br>• **The binary** ships through `install.sh` and `kyber-weave update`, like `kyber-weave-mcp`, with a `--no-arbiter` opt-out.<br>• **Hook wiring** is rendered by `squad install` / `squad update` when `arbiter:` is enabled. Hooks are rendered per agent, and that is how the caller's identity is trusted.<br>• **Each user's provider choice and key** go through `kyber-weave arbiter setup \| status \| doctor`, with an optional user-level override at `~/.config/kyber-weave/arbiter.yml`. | Owner, 2026-10-02 (former open question Q6, "go with recommended"). |
 | D23 | **`setup` suggests `nimble` as the local model** when Ollama 0.35 or later is present: 9B, 9.3 GB, about 8k tokens per question, and 74.8% against JEV's 76.0%. `tev1` stays selectable, but its usable input of about 2,000 tokens is too small for most of the shipped delegation and claim checks. | Owner, 2026-10-02 (former open question Q8, "go with nimble"). |
 
-## Decision ledger (Draft only)
+## Decisions
 
 Every owner decision is recorded under Approved decisions. Questions found during
-`architect`'s discovery on 2026-10-02 are listed here. Ids continue after the former open
-questions Q1–Q8 so that no id is reused.
+`architect`'s discovery on 2026-10-02 (Q9–Q11) and the Phase-1 open question (Q15 from 42763e5)
+are resolved below:
 
-| ID | Question | Options | Recommendation | Depends on | Status |
-|---|---|---|---|---|---|
-| Q9 | How is this change delivered, given its size (finding 25)? | (a) One plan and one PR. (b) Three sequential plans and PRs, by phase. (c) Raise the review size ceiling. | (b) | — | OPEN |
-| Q10 | How is Squad's owned block marked inside a JSON hook file (finding 26)? | (a) By command signature, plus a named hook group on Antigravity. (b) By a sentinel key on each entry. (c) No shared files. | (a) | Q11 is (b) or (c) | OPEN |
-| Q11 | How are harnesses with project-wide hooks and no caller identity gated (findings 32 and 33)? | (a) Trusted callers only. (b) Infer the caller from the target. (c) Identify the caller from headers. | (c) | — | OPEN |
+| ID | Question | Answer / decision | Mitigating and supporting information | Status / approval provenance |
+|---|---|---|---|---|
+| Q9 | How is this change delivered, given its size (finding 25)? | Three delivery phases sequenced by harness group (D26, D28, D32, D34). | Spec covers all three phases; each phase ships as its own PR. | ANSWERED. Owner, 2026-10-03. |
+| Q10 | How is Squad's owned block marked inside a JSON hook file (finding 26)? | Identified by command signature (`kyber-weave-arbiter hook --harness <h> --caller <agent>`), named group on Antigravity (D25). | Avoids unsupported sentinel keys in strict JSON files. | ANSWERED. Owner, 2026-10-03. |
+| Q11 | How are harnesses with project-wide hooks and no caller identity gated (findings 32 and 33)? | Gated by `KYBER-ARBITER: true` marker header and dispatch routing headers (D24, D27). | Available to hook for gating outside prompt payload. | ANSWERED. Owner, 2026-10-03. |
+| Q15 | How Claude dispatches report their return (Phase-1 open question from 42763e5) | Option (a): dispatch targets receive frontmatter `PreToolUse` hook on `^SubagentHandback$`, passing through `message` input and evaluating post-dispatch rules. | Joined to dispatch via `agentId`. Tasks 4.4 and 6.6 written to option (a). | RESOLVED. Option (a) confirmed. |
 
 ### Q9 — Delivery shape
 
@@ -205,9 +194,9 @@ escalated there (D10, D21).
 ## Investigation findings
 
 1. **The conductor is denied MCP access on purpose.**
-   [`ClaudeRenderer.ResolveTools`](../../src/KyberWeave.Core/Squad/Rendering/ClaudeRenderer.cs)
+   [`ClaudeRenderer.ResolveTools`](../../../src/KyberWeave.Core/Squad/Rendering/ClaudeRenderer.cs)
    withholds every MCP server from the pure orchestrator. The `orchestrator` profile in
-   [capabilities.yml](../../products/kyber-squad/profiles/capabilities.yml) also denies search,
+   [capabilities.yml](../../../products/kyber-squad/profiles/capabilities.yml) also denies search,
    write and execute. The D4 fallback therefore needs:
    - a new capability (working name `decision.query`) granted to `orchestrator` and `reviewer`;
    - renderers that lower that capability to the Arbiter server alone.
@@ -238,14 +227,14 @@ escalated there (D10, D21).
    `2026-09-29-glib-variant-str-iter-backport`, have no `## Tasks` section. Under D10, such a
    plan is escalated at its first delegation.
 6. **A new agent field would be a schema change, and none is needed.**
-   [agent.schema.json](../../products/kyber-squad/schemas/agent.schema.json) declares
+   [agent.schema.json](../../../products/kyber-squad/schemas/agent.schema.json) declares
    `additionalProperties: false`. Finding 18 shows that hook rendering derives from
    `delegates-to`, so neither the schema nor `SquadSourceLoader.ParseAgent` changes.
 7. **Release lists its assets explicitly.** Release publishes two .NET binaries
-   ([release-local.sh](../../scripts/release-local.sh)), and the checksum verifier enumerates
-   every asset ([ADR 0027](../adr/0027-release-integrity-checksums-signing-deferred.md)). A
+   ([release-local.sh](../../../scripts/release-local.sh)), and the checksum verifier enumerates
+   every asset ([ADR 0027](../../adr/0027-release-integrity-checksums-signing-deferred.md)). A
    third binary adds five platform archives to each list.
-8. **Prior art.** [Squad architecture §3](../kyber-squad/architecture.md) rejected skill-scoped
+8. **Prior art.** [Squad architecture §3](../../kyber-squad/architecture.md) rejected skill-scoped
    Claude hooks for holding the conductor's profile, because skill hooks stay registered for
    the rest of the session. The same lifetime applies to an Arbiter hook declared on the
    `/conductor` entry-point skill; see risk R5.
@@ -308,7 +297,7 @@ from the vendor pages listed under [Sources](#sources).
 13. **Configuration.** `KyberWeaveYamlDocument` (internal) holds one property per section.
     `KyberWeaveConfigLoader.FromDocument` merges each section through a `*ConfigLoader.Merge`
     into `KyberWeaveConfig`, whose `Clone` must learn every new section. Lists replace rather
-    than append ([Core AGENTS.md](../../src/KyberWeave.Core/AGENTS.md)). The `arbiter:` section
+    than append ([Core AGENTS.md](../../../src/KyberWeave.Core/AGENTS.md)). The `arbiter:` section
     follows the same pattern: `ArbiterYamlSection`, `ArbiterConfigLoader.Merge` and
     `KyberWeaveConfig.Arbiter`.
 14. **Gates have no notion of "not applicable".**
@@ -326,7 +315,7 @@ from the vendor pages listed under [Sources](#sources).
     `CorpusProvenance` (Mcp). Arbiter git facts are new code over `ProcessRunner`.
 16. **HTTP in Core has a precedent.** `OpenAiCompatibleEmbeddingGenerator` takes an injected
     `HttpMessageHandler`. Core does not construct its own collaborators
-    ([Core AGENTS.md](../../src/KyberWeave.Core/AGENTS.md)), so the handler, the credential
+    ([Core AGENTS.md](../../../src/KyberWeave.Core/AGENTS.md)), so the handler, the credential
     store and the user-home path are injected by the composition roots: the CLI and the
     Arbiter binary.
 17. **Squad source.** `SquadAgent` carries `DelegatesTo` and `CapabilityProfile`, and
@@ -355,7 +344,7 @@ from the vendor pages listed under [Sources](#sources).
     - `SquadStateStore` deserializes with `UnmappedMemberHandling.Disallow` and checks the
       exact set of fields.
     - Project receipts are `kyber-squad.receipt/v1` and Global receipts `v2`
-      ([ADR 0024](../adr/0024-squad-global-receipt-layout-marker.md)).
+      ([ADR 0024](../../adr/0024-squad-global-receipt-layout-marker.md)).
 
     D8's owned block therefore needs a new receipt member and schema id, block-aware
     install, update and uninstall plans, and drift reporting in `status` and `doctor`. The new
@@ -419,7 +408,7 @@ from the vendor pages listed under [Sources](#sources).
     terminology section instead. Creating the repository's first managed glossary is out of
     scope.
 30. **KS-001 pins "10 progressive-disclosure references"** for agents. The new architect
-    escalation reference makes 11, so [requirements.md](../kyber-squad/requirements.md)
+    escalation reference makes 11, so [requirements.md](../../kyber-squad/requirements.md)
     changes with it.
 31. **Reserved paths.** Files named `*Credential*` match the `always-human` pattern
     `**/*credential*`, as do `products/kyber-squad/agents/**`, `capabilities.yml` and
@@ -1179,7 +1168,7 @@ degradation records. T24 keeps only Claude and the `.agent.md` hooks.
 
 **Acceptance:**
 
-1. Output and exit codes follow [the CLI AGENTS.md](../../src/KyberWeave.Cli/AGENTS.md) and
+1. Output and exit codes follow [the CLI AGENTS.md](../../../src/KyberWeave.Cli/AGENTS.md) and
    `CommandHelpers.Finish`.
 2. The T10 row is GREEN.
 
@@ -1318,7 +1307,7 @@ degradation records. T24 keeps only Claude and the `.agent.md` hooks.
 **Acceptance:**
 
 1. Tool descriptions follow the routing-metadata rule in
-   [the MCP AGENTS.md](../../src/KyberWeave.Mcp/AGENTS.md).
+   [the MCP AGENTS.md](../../../src/KyberWeave.Mcp/AGENTS.md).
 2. `arbiter_evaluate` is annotated as not read-only, because it appends to the decision log.
 3. The T16 row is GREEN.
 
@@ -1339,7 +1328,7 @@ degradation records. T24 keeps only Claude and the `.agent.md` hooks.
 
 1. `ARBITER_MIN_VERSION` is the version `scripts/next-release-version.sh` prints at
    implementation time.
-2. Run the local release loop as [AGENTS.md](../../AGENTS.md) requires.
+2. Run the local release loop as [AGENTS.md](../../../AGENTS.md) requires.
 3. The T17 row is GREEN.
 
 **Depends on:** T13.
@@ -1836,7 +1825,7 @@ a new test file. T28 alone edits the existing renderer contract tests.
 
 ## Verification gates
 
-Run the gate list in the root [AGENTS.md](../../AGENTS.md), plus
+Run the gate list in the root [AGENTS.md](../../../AGENTS.md), plus
 `dotnet run --project src/KyberWeave.Cli -- review gates . --base main --out artifacts/gates.json`.
 Then run these:
 
@@ -1862,20 +1851,12 @@ Then run these:
 
 ## Review and closeout
 
-`code-reviewer` runs once over the accumulated change of whatever this plan delivers.
+This plan established the architectural foundation for Kyber Arbiter. Due to scope, discovery findings, and owner direction (D26, D28, D32, D34), the complete requirements, design, and three-phase execution tasks were authored and published in the formal specification at [`docs/archive/specs/kyber-arbiter/`](../specs/kyber-arbiter/README.md).
 
-- The change touches `always-human` paths: `products/kyber-squad/agents/**`,
-  `capabilities.yml`, `.kyber-weave/kyber-weave.yml` and `*credential*` files. `NEEDS_HUMAN`
-  is therefore the expected verdict (D13: the council still runs).
-- `code-reviewer` passes `--base` to `review gates` once T9 has landed.
-
-`docs-dev` then does the T34 closeout:
-
-- migrates durable facts into ADR 0028, ADR 0029 (if Q11 is not (a)) and the
-  `docs/kyber-arbiter/` documents;
-- synchronizes the plan index;
-- archives this plan;
-- under Q9 (b), records Phases B and C as todos that cite this plan's archived task sections.
+### Closeout mapping
+- Specification harvest: all requirements, design, rule catalogue, and tasks harvested into [`docs/archive/specs/kyber-arbiter/`](../specs/kyber-arbiter/README.md).
+- ADR status: no ADR — decisions recorded in the plan and specification. ADRs 0028 and 0029 to be authored during delivery phases.
+- Plan status: complete/superseded, archived per KW-DOC-LIFECYCLE-003.
 
 ## Sources
 
