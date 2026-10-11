@@ -26,6 +26,7 @@ import { resolveHarnessScope } from '../refresh/registry.js'
 import type { SourceCheckpoint } from '../canon/source-state.js'
 import type { CleanRequest } from '../clean/clean.js'
 import { MAX_CLEAN_REINGEST_WEEKS } from '../clean/clean.js'
+import { handleCaptureRequest, type CaptureRouteSettings } from './capture-routes.js'
 
 /** The build this server is, carried on `/meta` so a client can check it (R6.7). */
 const KYBERDASH_VERSION = String(
@@ -486,6 +487,11 @@ export type KyberRouteDeps = {
    * server that is right there as one that does not exist.
    */
   readonly jobHost?: Pick<JobHost, 'getStatus' | 'runNow' | 'runJob'>
+  /**
+   * Where the capture route reads and writes harness configs (T5). Absent means the real
+   * home directory; the web server and the tests inject a temporary one.
+   */
+  readonly capture?: CaptureRouteSettings
   /**
    * The receiver host the coverage route reads fresh receiver state from. Absent in
    * tests that drive the routes without a host pair — coverage then reports the
@@ -1626,6 +1632,16 @@ export function handleKyberRequest(
     }
     sendKyberJson(res, 200, bridge.getModelCatalog())
     return true
+  }
+
+  // Harness OTel capture (ADR 0031): the Settings drawer's status and enable/disable. The
+  // module owns the route; this hands it the body helpers every mutating route shares.
+  if (url.pathname === '/api/kyber/capture') {
+    return handleCaptureRequest(req, res, url, deps, {
+      sendJson: sendKyberJson,
+      requireJsonContentType,
+      serveJsonObjectBody,
+    })
   }
 
   // Shared settings (rule R1): the tray and the web UI read and write the same four
