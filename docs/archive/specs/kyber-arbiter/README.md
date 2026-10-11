@@ -31,7 +31,7 @@ Kyber Arbiter enforces the Squad's in-flight decisions:
 
 ## Decisions and questions
 
-The owner decided D1–D34 between 2026-10-01 and 2026-10-04. Follow-up design and delivery questions Q15–Q17 are resolved as recorded below and in the [task list](tasks.md#pending-decisions):
+The owner decided D1–D34 between 2026-10-01 and 2026-10-04. Follow-up design and delivery questions Q15–Q17 are resolved as recorded below and in the [task list](tasks.md#decisions-on-design-gaps):
 
 | Question | What was evaluated | Resolution | Details |
 |---|---|---|---|
