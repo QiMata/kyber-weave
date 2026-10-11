@@ -12,7 +12,7 @@ last-reviewed: 2026-10-10
 **Status:** Archived
 **Archive Date:** 2026-10-10
 
-Delivered and archived 2026-10-10: specification work complete (approved requirements, design, and three-phase task list). Decisions recorded in the spec; implementation delivered in three subsequent phase PRs.
+Delivered and archived 2026-10-10: specification work complete (approved requirements, design, and three-phase task list). Decisions recorded in the spec; implementation to be delivered in three subsequent phase PRs.
 
 A rule engine, configured in `.kyber-weave/kyber-weave.yml` and invoked by harness hooks at the squad's decision points, with up to three steps of escalation: plain code answering exact facts, a decision model (TypeSafe JEV or local Ollama) answering judgements about meaning, and a reasoning agent answering what the model flags or is unsure about. Each rule's question is answered according to the TypeSafe escalation pattern, with one confident red flag enough to escalate—signals are not averaged.
 
