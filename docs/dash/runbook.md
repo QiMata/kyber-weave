@@ -6,7 +6,7 @@ status: current
 component: KyberDash
 source-root: dash
 owner: dpalfery
-last-reviewed: 2026-10-10
+last-reviewed: 2026-10-11
 code-refs:
   - registerKyberCommands
   - refreshHarnessSources
@@ -148,6 +148,31 @@ running, `ReceiverHost` (`dash/src/jobs/receiver-host.ts`) hosts the same receiv
 of that server instead, and `settings.receiver.hosted` ([§2d](#2d-shared-settings-and-pause))
 records which of the two the current setup uses.
 
+### 1a. Enabling Claude Code content on the sender
+
+Claude Code sends its prompt and request-body text only when the sender opts in. KyberDash
+never applies these settings automatically: they are the sender's consent, set for the
+Claude Code process or written into `~/.claude/settings.json` by
+`kyberdash kyber capture` when the owner runs it
+([ADR 0031](../adr/0031-kyberdash-capture-command-owns-harness-telemetry-keys.md)).
+
+| Setting | Effect | Exposure |
+|---|---|---|
+| `OTEL_LOGS_EXPORTER=otlp` | Sends Claude Code event logs — including `api_request_body` — to the receiver. Without it, only traces arrive and no request body is sent. | Enables the two settings below; on its own it sends counters and metadata only. |
+| `OTEL_LOG_USER_PROMPTS=1` | Exports the interaction span's `user_prompt` as text instead of `<REDACTED>`. | Exports the user's prompt text verbatim. |
+| `OTEL_LOG_RAW_API_BODIES=1` | Inlines the raw API request body in the log event. `file:` would spill untruncated bodies onto disk instead. | Exports the full system prompt, tool definitions, and message history verbatim. |
+| `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | Raises Claude Code's 61,440 UTF-16-unit inline-body ceiling (the capture writer sets 1,048,576). | Larger bodies mean more prompt text stored; the ceiling is a size limit, not a privacy control. |
+
+**Data-exposure warning.** With these enabled, the receiver stores the system prompt, tool
+definitions, message history, and the user's prompt as plaintext content parts, served on the
+loopback-only `/api/kyber/*` API. Assembled turn text is purged after 14 days; the raw packet
+keeps exactly what the sender sent until you wipe the `claude-code` harness or the whole
+database ([§4](#4-content-retention-policy),
+[ADR 0035](../adr/0035-kyberdash-quarantine-raw-packet-evidence.md)). Set them only when you
+accept that exposure. What the receiver then does with the text — and the reasons it declares
+when a body is redacted, truncated, or arrives as a `body_ref` it will not open — is in the
+[telemetry inventory](telemetry-inventory.md#claude-code-otlp-content-live).
+
 ### 2. Derived Projection Rebuilding (`kyber build`)
 
 The `session`, `run`, `execution`, and `finding` tables are derived projections over raw canonical
@@ -236,10 +261,10 @@ Coverage route: `GET /api/kyber/coverage` returns the refresh window, per-source
 activity (record counts from `records`, log sums and `lastReceivedAt` from `ingest_log`),
 per-reason quarantine counts, and `source_checkpoint` statuses including `partial`. An
 empty log and empty table yield `{ status: 'unknown' }` with a reason, never a zero.
-The Context Doctor coverage panel lists sources discovered but not ingested, grouped by
-their persisted reason: `window_filtered` (all native records predate the refresh window;
-widen `--history-weeks` to ingest them) or `no_recordable_events` (the file holds no usage
-or model events, so there is nothing to ingest).
+The dashboard's **Status** panel reads that route and lists sources discovered but not
+ingested, grouped by their persisted reason: `window_filtered` (all native records predate the
+refresh window; widen `--history-weeks` to ingest them) or `no_recordable_events` (the file
+holds no usage or model events, so there is nothing to ingest).
 
 ### 2b. Database clean (`dash clean`)
 
@@ -273,8 +298,13 @@ wipes the scope in one store transaction (records including `records.raw`, prove
 checkpoints, and harness-scoped derived caches), projects the derived tables, re-ingests
 the scope **only if a window was requested**, and resumes ingestion. `ingest_log`,
 `refresh_run`, `metadata` (stamped `last_clean_at`/scope), `token_cache`, and the
-model-window catalog are never wiped. Wipe-all additionally clears `quarantine` and the
-log-enrichment tables; a per-harness wipe cannot scope quarantine rows (no harness column).
+model-window catalog are never wiped. Wipe-all clears `quarantine` and the
+log-enrichment tables. A per-harness wipe now deletes the `quarantine`, `pending_logs`,
+and `quarantined_logs` rows whose `harness` matches the wiped raw names — the nullable
+column schema v19 added for exactly this
+([ADR 0035](../adr/0035-kyberdash-quarantine-raw-packet-evidence.md)). A row with no
+harness is "unknown", never "matches", so unclaimed rows survive a per-harness wipe and
+are cleared only by the complete wipe.
 
 There is no backup and no undo: the data is ephemeral point-in-time telemetry, and
 file-backed harnesses re-derive it from source logs. OTLP-collected records have no
@@ -340,9 +370,8 @@ with the JSON keys `folderImportScheduled`, `jobsPaused`, `refreshCadenceMinutes
 untouched — and a body with an unknown key or a value of the wrong type is refused whole.
 
 **Pause covers scheduled jobs only.** `jobs.paused` stops the job host from scheduling: no
-scheduled refresh and no maintenance pass runs while it is set. Manual **Refresh**,
-**Import folder history**, and **Clean**, the OTLP receiver's continued ingest, and the
-retention purge all carry on — pausing must not silently stop collection. The dashboard's
+scheduled refresh runs while it is set. Manual **Refresh**, **Import folder history**, and
+**Clean**, the OTLP receiver's continued ingest, and the retention purge all carry on — pausing must not silently stop collection. The dashboard's
 Maintenance panel offers Pause/Resume and reads the *host's* answer from `GET /api/kyber/jobs`,
 not the echo of the setting it just wrote.
 
@@ -365,6 +394,36 @@ Two things change on the first launch after an upgrade, both of them deliberate
 The tray now attaches to a running `kyberdash web` server rather than owning one, so if the
 dashboard was already running before the upgrade, the tray joins that server and collection
 continues even after you quit the menu bar.
+
+### 2f. Seeing a turn's raw packet
+
+A Claude Code turn can be inspected down to the packets that carried it. Open the turn in the
+Context Inspector: a **Raw packet** disclosure appears whenever the turn-content result carries
+one, and fetching nothing until it is opened. It shows two payloads
+([ADR 0035](../adr/0035-kyberdash-quarantine-raw-packet-evidence.md)):
+
+- the request span's own harness-emitted attributes, from
+  `GET /api/kyber/span/<spanId>/attributes`; and
+- when the server named the link — which it does only when the parent interaction span's
+  quarantine row kept a payload — the quarantined parent packet, from
+  `GET /api/kyber/quarantine/<parentSpanId>`.
+
+The turn view renders only the links the server returns: an absent `interactionPath` means the
+parent row kept no payload, never a disclosure to render empty. The same two routes are
+callable directly:
+
+```bash
+# The request span's attributes
+curl -s "http://127.0.0.1:4747/api/kyber/span/<spanId>/attributes" | jq .
+
+# The quarantined parent interaction packet, as filed
+curl -s "http://127.0.0.1:4747/api/kyber/quarantine/<parentSpanId>" | jq .
+```
+
+The quarantine detail route answers 200 for a known span, 404 for an unknown one, 405 for a
+non-GET method, and 400 `{ error: 'Missing span id' }` for an empty id. A row that predates the
+payload column reads `rawPayload: null, evidenceAvailable: false` — never an invented packet.
+The quarantine **list** stays light and never serves payloads.
 
 ### 3. Raw Content Backfill and Re-normalization
 
@@ -410,6 +469,12 @@ standing privacy and storage liability ([ADR 0014](../adr/0014-unclipped-turn-in
   schedule that is not reading folder sources. Rows older than 14 days have content emptied
   in place (`'{}'` / NULL parts). Token metrics, timestamps, findings, and `records.raw`
   stay.
+- **The window does not cover raw packets.** Assembled turn text is purged after 14 days.
+  The raw packet keeps exactly what the sender sent until you wipe the `claude-code` harness
+  or the whole database ([§2b](#2b-database-clean-dash-clean),
+  [ADR 0035](../adr/0035-kyberdash-quarantine-raw-packet-evidence.md)). Never read the 14-day
+  window as "all prompt text expires"; raw packets outlive it by design
+  ([ADR 0018](../adr/0018-kyberdash-content-retention-purge.md)).
 - There is no shipped `kyber purge-content` CLI. Re-run `dash refresh` to apply the window.
 
 ### 5. LLM Review Provider Configuration & Privacy Guardrails
@@ -590,12 +655,27 @@ Every view has its own URL, so a view can be bookmarked, shared, or opened direc
 (`dash/web/src/lib/router.ts`), `kyberdash web --view`, and the tray's open actions all read
 that one list. Browser back and forward restore the spine.
 
-Header tabs (`nav-tabs`) are four: **Context Doctor**, **Usage**, **Quarantine**, **Problems**.
-The sidebar is the diagnostic spine rail: **Context Doctor**, **Sessions**, **Compare**. Share
-controls appear on Usage only.
+Top navigation (`nav-tabs`) offers five: **Context Doctor**, **Sessions**, **Compare**,
+**Quarantine**, **Problems**. Next to the theme toggle the header carries a **Settings** button
+(not a tab) that opens the Settings drawer ([Harness OpenTelemetry capture](#harness-opentelemetry-capture)).
+It is the whole navigation — the entire left rail and the
+mobile hamburger/toggle that opened it were removed, so there is no second surface to keep in
+step and the main content takes the full width of the shell. Views reached by drilling — a
+run, an execution, a turn, a finding — stay reachable from the pages that lead to them.
 
-- **Context Doctor**: Cross-harness landing (findings, scorecard matrix). Drill harness → run →
-  execution → turn → context item.
+There is **one main harness selector** — the **Harness:** strip under the header — and it
+scopes **Sessions** and **Context Doctor** together. Choosing a harness narrows whichever of
+those two pages is open, in place: it never navigates away from the page you are on, and both
+pages read the same selection. **Compare** keeps its own independent per-side harness
+filters, so narrowing one page's scope never touches the A/B selectors.
+
+- **Context Doctor**: findings and recommendations. It opens scoped to all sessions for the
+  selected harness, with session selection available when you want to narrow further; the
+  drilldowns are unchanged — harness → run → execution → turn → context item, plus the
+  finding detail view and the ranked findings lists. Neither ingest coverage nor maintenance
+  is embedded here any more: coverage is read-only in the **Status** panel, and every
+  operator action lives in the **Maintenance** panel
+  ([below](#status-and-maintenance-panels)).
 - **Sessions**: Session explorer (`page-sessions`) wrapping the Agent Session Analysis
   Dashboard from `canon.db` — not a restored Context tab:
   - *Overview Strip*: Spans, turns, total tokens, cache hit ratio, cost USD/credits, exact reconciliation status, and subagent links.
@@ -604,8 +684,9 @@ controls appear on Usage only.
   - *Tool & Schema Cost Table*: Ranked tool schema sizes, resident turns, invocations, and unused schema waste range.
   - *Execution Timeline / Call Tree*: Hierarchical span call tree with duration, status badges, and auxiliary flags.
   - *Inspector Drawer (`SessionInspectorDrawer`)*: Slide-out drawer with XML tag folding (`<instructions>`, `<environment_info>`, `<context>`) and formatted tool call/result trees.
-- **Compare** (rail): Phase-aligned run comparison (`page-compare`), not a fifth header tab.
-  Open it from the sidebar or navigate directly to `/compare?a=:runId&b=:runId` to pre-select
+- **Compare**: Phase-aligned run comparison (`page-compare`), reached from the top
+  navigation or its own URL. Navigate directly to
+  `/compare?a=:runId&b=:runId` to pre-select
   two runs; without explicit `a`/`b` query ids, **Run A** and **Run B** both start at
   **Select a run** and kyberdash issues no comparison request until two distinct run ids are
   chosen. Each selector has its own harness filter (**All harnesses** plus every harness id
@@ -620,14 +701,27 @@ controls appear on Usage only.
   `0` turns, a zero token delta, or `0 / 5` completed pairs; promotion stays disabled
   (`canPromote: false`) until history is explicitly measured. See
   [Run Comparison and Phase Alignment](architecture.md#run-comparison-and-phase-alignment-decision-d11).
-- **Usage**: Device spend overview, multi-provider cost rollups, top projects, daily spend, Share.
 - **Quarantine**: Quarantined spans holding unrecognized namespaces or malformed attributes.
 - **Problems**: Recorded token reconciliation mismatches, validation anomalies, and parser errors.
 
-#### Maintenance panel
+#### Status and Maintenance panels
 
-The Maintenance panel is where the dashboard asks the engine to do things. Every control
-here is an `/api/kyber/*` call; the panel holds no scheduler of its own
+Two right-side panels hang off the top-right **Status** and **Maintenance** buttons. They are
+**mutually exclusive** — opening one closes the other, so only one is on screen at a time.
+Both are display-layer views over the same `/api/kyber/*` routes the tray already uses, and
+neither holds a scheduler or an engine rule of its own
+([`rules/kyberdash-display-layer`](../rules/kyberdash-display-layer.md)).
+
+**Status is read-only.** It carries the ingest coverage payload from
+`GET /api/kyber/coverage` ([§2a](#2a-local-harness-source-refresh-dash-refresh)): the
+persisted refresh window and last successful run, per-source ingest activity with
+last-received, per-reason quarantine counts, `source_checkpoint` statuses including `partial`,
+and the zero-record reasons grouped by their persisted cause. It starts no job and writes
+nothing: its close and retry controls dismiss the panel and read the same route again. Any
+action that changes the store belongs in **Maintenance**, not here.
+
+**Maintenance is where the dashboard asks the engine to do things.** Every control here is
+an `/api/kyber/*` call; the panel holds no scheduler of its own
 ([`rules/kyberdash-display-layer`](../rules/kyberdash-display-layer.md)):
 
 - **Scheduled jobs**: Pause/Resume (writes `jobsPaused` over `PUT /api/kyber/settings`) and
@@ -643,9 +737,16 @@ here is an `/api/kyber/*` call; the panel holds no scheduler of its own
   (`folderImportScheduled`), **Refresh cadence** (`refreshCadenceMinutes`), and the
   **OTLP receiver** (`receiverHosted`), alongside the job host's status — scheduled state,
   last success, last failure, next due.
-- **Clean**: wipe all or per harness, confirmed, with the **Import folder history** checkbox
-  carrying the post-wipe window (`reingestWeeks`); unchecked means no re-ingest
-  ([§2b](#2b-database-clean-dash-clean)).
+- **Model catalog refresh**: `POST /api/kyber/model-catalog/refresh` re-reads the model
+  context-window catalog (declared context windows per model, not prices). Its status line is
+  built from the row count, the refresh timestamp and the vendor names, including which
+  vendors failed on a partial refresh — never from a raw refresh error string, which can carry
+  a remote body. A failed refresh leaves the catalog as it was and says so.
+- **Clean (database wipe)**: wipe all or per harness, confirmed, with the **Import folder
+  history** checkbox carrying the post-wipe window (`reingestWeeks`); unchecked means no
+  re-ingest ([§2b](#2b-database-clean-dash-clean)). The confirmation and its scope are
+  unchanged — both surfaces say plainly that there is no undo and that OTLP-collected records
+  do not come back.
 
 Open tabs follow the store: the browser polls `storeGeneration` (the store's identity plus
 wipe marker) every ~10 seconds and refetches when it changes, so a wipe or an import started
@@ -654,33 +755,45 @@ from the tray or a terminal shows up without a manual reload. Coverage likewise 
 keeping them would claim coverage the store no longer has
 ([ADR 0032](../adr/0032-kyberdash-user-initiated-clean.md)).
 
-#### Sessions harness tabs
+#### The harness selector
 
-Open **Sessions** in the sidebar. **Agent Sessions (All)** is selected initially and shows
-sessions across all available harnesses. The other tabs come from the canonical session
-inventory: each distinct nonempty harness ID with sessions gets one tab, regardless of how
-many sessions share that ID. A harness without sessions has no tab.
+The **Harness:** strip under the header is the single main harness selector. It scopes
+**Sessions** and **Context Doctor** together, and selecting a harness narrows whichever of
+those two pages is open without leaving it — it is never a navigation away from the page you
+are reading. **Compare** is deliberately outside this scope: its Run A and Run B selectors
+keep their own independent harness filters.
 
-Select a harness tab to show only sessions with that exact harness ID. Under the
-harvested #182 twin fold, client front-ends fold onto their primary harness: Claude Desktop
-folds onto Claude Code (and Cursor Agent onto Cursor) for derived rows, rollups, and API
-filters, so Claude Desktop turns appear under the Claude Code tab rather than a duplicate
-surface. The two evidenced exceptions where variants stay separate are: (1) file-side
+**All Harnesses** is the selector's all-scope entry: the first entry in the strip, and the
+label for every session in the store. Selecting it restores the unscoped view on both pages.
+The remaining entries come from the harness summaries the store reports
+(`GET /api/kyber/harnesses`): a harness the store holds records for gets an entry labelled by
+its metadata name, and a harness with none gets no entry. The all-scope entry is the selector's
+own `all` scope, not a stored harness id — `agent-all` is the sentinel of the older Sessions
+explorer's own tabs, not a header entry.
+
+**Sessions** shows sessions across every harness with **All Harnesses** selected, and only
+sessions with that exact harness ID when a harness is selected. Open a session row to inspect
+its dashboard, or use a child session's parent link to open its parent. Changing the harness
+collapses the expanded session.
+
+**Context Doctor** opens scoped to all sessions of the selected harness, and session
+selection is optional: choose one to narrow the page further. Its drilldowns are unchanged —
+harness → run → execution → turn → context item — so a harness chosen in the strip and a
+harness reached by drilling into one are the same scope.
+
+Under the harvested #182 twin fold, client front-ends fold onto their primary
+harness: Claude Desktop folds onto Claude Code (and Cursor Agent onto Cursor) for derived
+rows, rollups, and API filters, so Claude Desktop turns appear under the Claude Code entry
+rather than a duplicate surface. The two evidenced exceptions where variants stay separate
+are: (1) file-side
 standalone sessions that lack OTLP twins remain directly retrievable by session ID, and
 (2) unclipped content inspection preserves the raw origin. Other client variants stay
 separate: Codex Desktop and Codex CLI; Antigravity CLI and Antigravity IDE; and each
-Copilot client. Labels describe the tabs;
-future or unknown harness IDs use their stored ID as the label and remain selectable.
-**Agent Sessions (All)** restores sessions across harnesses.
+Copilot client.
 
-Tabs are ordered by harness ID and do not move when a new session lands. The All
-sentinel is reserved: a stored harness ID of `agent-all` never gets a tab of its own.
-
-If the selected harness is unavailable or disappears when the inventory refreshes, the
-selection falls back to All. An empty inventory keeps the All tab and displays
-**No sessions found.** Open a session row to inspect its dashboard, or use
-a child session's parent link to open its parent. Switching harness tabs collapses the
-expanded session.
+A scope with no sessions shows the scoped empty state (**No sessions found.**) and **keeps
+the selected harness** — it does not fall back to All. Selecting **All Harnesses** is how you
+widen the scope again.
 
 #### Querying REST Endpoints Directly
 
@@ -769,6 +882,73 @@ These suites validate:
 - Edge cases: 400 on missing session IDs, 404 on nonexistent sessions/routes, 405 on non-GET methods.
 - Resilient error handling (returns HTTP 400 on invalid query params without crashing the long-running server process).
 - That the CLI report and the REST report are equal for the same store and scope.
+
+### Harness OpenTelemetry capture
+
+`kyberdash kyber capture` points a harness's OTLP exporter at the KyberDash receiver by
+editing the harness's own user-level config, and the dashboard's Settings drawer drives the
+same engine. Both run the one implementation
+([ADR 0031](../adr/0031-kyberdash-capture-command-owns-harness-telemetry-keys.md)); the web
+dashboard holds no capture logic of its own
+([ADR 0033](../adr/0033-kyberdash-surfaces-are-display-layers.md)).
+
+**CLI.** Three leaves, each taking a repeatable `--harness <id>` (default: all six) and
+`--endpoint <url>` (OTLP/HTTP only; default `http://127.0.0.1:4318`):
+
+```bash
+kyberdash kyber capture status                      # per-harness state + receiver liveness
+kyberdash kyber capture enable  --dry-run           # print the exact per-file change, write nothing
+kyberdash kyber capture enable  --harness claude-code
+kyberdash kyber capture disable --harness claude-code   # restore per key; refuse on drift
+```
+
+`enable` writes only the telemetry keys and records, per key, the prior value and the file's
+pre- and post-edit hashes in a receipt. `disable` restores only keys that still hold what
+`enable` wrote and otherwise refuses, naming the drift. The CLI has no store, so it never
+touches the receiver setting.
+
+**Which harnesses are written.** Three are managed and can be switched: **Copilot** (VS Code
+and VS Code Insiders `settings.json`), **Claude Code**, and **OpenCode** (`opencode.jsonc`).
+**Codex**, **pi**, and **Antigravity** are status-only: status reports them, `enable` and
+`disable` do not write them, and the drawer shows them read-only. OpenCode reads its OTLP
+endpoint from the process environment, so `enable` writes only its flag; the drawer and
+`status` show `OTEL_EXPORTER_OTLP_ENDPOINT` and the receiver origin as a manual step, and
+KyberDash cannot see whether the shell that launches OpenCode has it set.
+
+**Settings drawer.** The header **Settings** button opens a right slide-out. It reads
+`GET /api/kyber/capture` on open and offers **Refresh status**. Each managed harness row shows
+its state (On, Off, Partly on, Unknown, Read-only), whether it was detected, the config files
+and how many expected keys are set, any warnings (for example a differing endpoint that was
+kept), and manual steps. A click never writes directly: the first request is a dry run, the
+drawer shows the exact keys it would change, and only **Confirm** sends the real request.
+A row is not switchable, with the reason printed, when its state is unknown, when it is `on`
+but KyberDash recorded no receipt (the keys were set elsewhere, so there is nothing to
+restore), or when it is not detected and has no receipt. A harness with a receipt can always
+be switched off. A refusal that happens before any write (drift on a disable, an unparseable or unreadable
+config, a conflict, busy) leaves every file unchanged and is shown on the row with the drifted
+keys. A harness with several files is written file by file, so a refusal or host error on a
+later file can follow earlier files that were already written and receipted; the response keeps
+those files' events, and a real enable that wrote anything still turns the receiver on.
+
+**Receiver coupling.** A real `enable` that ends written or already-set turns the shared
+`settings.receiver.hosted` on after the config write, so the harness has somewhere to send.
+A failed setting write is reported in the drawer (the config is already on disk) rather than
+as an error. `disable` never turns the receiver off, because other exporters may still post
+to the port; when the last managed harness is switched off the drawer says the receiver is
+still hosted and points at the receiver switch, which lives in the same drawer and in the
+Maintenance panel. The receiver block shows liveness probed at `/healthz`; when this server
+does not host the receiver, liveness is `unknown` and not probed. A newly started receiver
+can take several seconds to answer, so use **Refresh status**. An enabled harness is not
+collecting until it is restarted and emits a turn; a green enable is not capture.
+
+**Windows.** Capture runs on macOS, Linux and Windows. Paths are joined with the platform's
+separator; Copilot's VS Code settings are under the `%APPDATA%` directory, and the other
+harnesses under the user profile. JSON and JSONC edits preserve a byte-order mark and CRLF
+line endings. For Copilot, an edition's file is written only when it exists or its host
+directory exists, so enable never creates a VS Code Insiders profile on a machine without it.
+
+**Limits.** Overlapping actions in one server are queued, but a CLI run and a drawer run
+are not serialized against each other. OpenCode's `XDG_CONFIG_HOME` is not consulted.
 
 ### Optional Cursor hook collection
 
