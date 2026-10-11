@@ -23,7 +23,7 @@ These tasks deliver all three phases (D34), each as its own PR (D32), as the des
 | 3 | Kilo, Antigravity, Factory, Devin, Warp, ZCode, and the MCP fallback | 16–17 | 18.1 docs, 19.1 verification, 20.1 review |
 | Closeout | — | 21 | 21.1, after Phase 3 |
 
-Where each phase's PR merges was evaluated under Q16: the specification is completed and archived per KW-DOC-LIFECYCLE-003, with each phase PR merging independently.
+How each phase PR merges was evaluated under Q16: the specification is completed and archived per KW-DOC-LIFECYCLE-003, with each phase PR merging independently.
 
 ## How these tasks are dispatched
 
