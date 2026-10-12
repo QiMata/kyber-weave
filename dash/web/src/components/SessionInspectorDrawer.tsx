@@ -983,6 +983,96 @@ export function splitTopLevelArrayItems(raw: string): string[] | null {
 }
 
 /**
+ * Typed text blocks (`[{"type":"text","content":"..."}]`, as captured system
+ * prompts arrive) read better as a heading per block over the full text than
+ * as bracketed JSON. Returns null for any other shape.
+ */
+function parseTypedTextBlocks(text: string): Array<{ type: string; body: string }> | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return null
+  const blocks: Array<{ type: string; body: string }> = []
+  for (const item of parsed) {
+    if (!isRecord(item) || typeof item.type !== 'string') return null
+    const body = typeof item.content === 'string' ? item.content : typeof item.text === 'string' ? item.text : null
+    if (body === null) return null
+    blocks.push({ type: item.type, body })
+  }
+  return blocks
+}
+
+function hasUnsafeNumber(value: unknown): boolean {
+  if (typeof value === 'number') return Number.isInteger(value) && !Number.isSafeInteger(value)
+  if (Array.isArray(value)) return value.some(hasUnsafeNumber)
+  if (isRecord(value)) return Object.values(value).some(hasUnsafeNumber)
+  return false
+}
+
+/**
+ * Field-by-field readable rendering of parsed JSON: each key becomes a label
+ * over its value, strings sit in wrapped text boxes (no quotes or escapes), and
+ * nested objects/arrays indent beneath their label. Display only — Raw and
+ * Copy keep the exact source text.
+ */
+const MAX_STRUCTURED_DEPTH = 8
+
+function StructuredValue({ value, label, depth = 0 }: { value: unknown; label?: string; depth?: number }) {
+  const heading = label ? (
+    <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{humanizeContentKey(label)}</h4>
+  ) : null
+  if (typeof value === 'string') {
+    return (
+      <div className="space-y-1">
+        {heading}
+        <pre className="text-xs font-mono p-2 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-muted/40 text-foreground max-h-[60vh]">
+          {value === '' ? '(empty string)' : value}
+        </pre>
+      </div>
+    )
+  }
+  if (depth >= MAX_STRUCTURED_DEPTH && (Array.isArray(value) || isRecord(value))) {
+    // Bound recursion and DOM size on deeply nested payloads.
+    return (
+      <div className="space-y-1">
+        {heading}
+        <pre className="text-xs font-mono p-2 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-muted/40 text-foreground max-h-[60vh]">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      </div>
+    )
+  }
+  if (Array.isArray(value) || isRecord(value)) {
+    const entries: Array<[string, unknown]> = Array.isArray(value)
+      ? value.map((v, i) => [String(i + 1), v])
+      : Object.entries(value)
+    return (
+      <div className="space-y-2">
+        {heading}
+        {entries.length === 0 ? (
+          <p className="text-xs font-mono text-tertiary-foreground">{Array.isArray(value) ? '(empty list)' : '(empty object)'}</p>
+        ) : (
+          <div className={cn('space-y-2', depth > 0 && 'pl-3 border-l border-border')}>
+            {entries.map(([k, v]) => (
+              <StructuredValue key={k} value={v} label={k} depth={depth + 1} />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      {heading}
+      <p className="text-xs font-mono text-foreground">{String(value)}</p>
+    </div>
+  )
+}
+
+/**
  * Readable view for a string whose content is JSON (a tool-definitions blob,
  * a JSON-encoded system prompt, JSON-lines history). The formatted view only
  * re-indents the exact source text, so every literal — including integers
@@ -1010,26 +1100,54 @@ export function JsonStringView({
   const [viewMode, setViewMode] = useState<'formatted' | 'raw'>(defaultView)
   const [copied, setCopied] = useState(false)
 
-  // Recurse into JSON-encoded string values so nested Copilot context stays
-  // readable; the nested printer copies every literal byte-for-byte and only
-  // changes indentation plus string expansion. Raw and copy below still use
-  // the exact original `text`.
-  const singleNested = prettyPrintJsonNested(text)
-  const single = singleNested ?? prettyPrintJson(text)
-  const lines = single === null ? prettyPrintJsonLinesNested(text) ?? prettyPrintJsonLines(text) : null
-  if (single === null && lines === null) {
+  // Everything derived from `text` is memoized: the parsers below are
+  // O(payload) and payloads can be megabytes, so toggling Raw/Formatted or
+  // clicking Copy must not re-run them. Recurse into JSON-encoded string
+  // values so nested Copilot context stays readable; the nested printer
+  // copies every literal byte-for-byte. Raw and copy use the exact `text`.
+  const derived = useMemo(() => {
+    const singleNested = prettyPrintJsonNested(text)
+    const single = singleNested ?? prettyPrintJson(text)
+    const lines = single === null ? prettyPrintJsonLinesNested(text) ?? prettyPrintJsonLines(text) : null
+    if (single === null && lines === null) return null
+
+    const typedBlocks = parseTypedTextBlocks(text)
+    const split = single !== null ? splitTopLevelArrayItems(text) : null
+    const multiItems = split !== null && split.length > 1 ? split : null
+    // One JSON.parse per item. Numbers outside the safe range would be rounded
+    // by JSON.parse; those items stay on the byte-exact pretty-printed text.
+    const structuredItems = multiItems !== null
+      ? multiItems.map((item) => {
+          try {
+            const v: unknown = JSON.parse(item)
+            return isRecord(v) && !hasUnsafeNumber(v) ? v : undefined
+          } catch {
+            return undefined
+          }
+        })
+      : null
+    // Pretty text is only needed for items without a structured view, but
+    // every item must still be printable for the multi-item view to apply.
+    const multiPretty = multiItems !== null && structuredItems !== null
+      ? multiItems.map((item, idx) =>
+          structuredItems[idx] !== undefined ? '' : prettyPrintJsonNested(item) ?? prettyPrintJson(item),
+        )
+      : null
+    const showItems = multiPretty !== null && multiPretty.every((part): part is string => part !== null)
+    return { single, lines, typedBlocks, multiItems, multiPretty, showItems, structuredItems: showItems ? structuredItems : null }
+  }, [text])
+
+  if (derived === null) {
     // Shaped like JSON but not valid JSON — show the text as-is so nothing
     // is dropped; the structured view simply has nothing to add.
     return <XmlFoldedText text={text} />
   }
-
-  const split = single !== null ? splitTopLevelArrayItems(text) : null
-  const multiItems = split !== null && split.length > 1 ? split : null
-  const multiPretty = multiItems !== null ? multiItems.map((item) => prettyPrintJsonNested(item) ?? prettyPrintJson(item)) : null
-  const showItems = multiPretty !== null && multiPretty.every((part): part is string => part !== null)
+  const { single, lines, typedBlocks, multiItems, multiPretty, showItems, structuredItems } = derived
 
   const nonBlankLines = text.split('\n').filter((line) => line.trim() !== '').length
-  const descriptor = multiItems !== null
+  const descriptor = typedBlocks !== null
+    ? `${typedBlocks.length} text ${typedBlocks.length === 1 ? 'block' : 'blocks'}`
+    : multiItems !== null
     ? `Array · ${multiItems.length} items`
     : lines !== null
       ? `JSON lines · ${nonBlankLines} lines`
@@ -1091,19 +1209,39 @@ export function JsonStringView({
         ) : null}
       </div>
       {viewMode === 'formatted' ? (
-        showItems && multiItems !== null && multiPretty !== null ? (
+        typedBlocks !== null ? (
+          <div className="space-y-3" data-testid="json-text-blocks">
+            {typedBlocks.map((block, idx) => (
+              <div key={idx} className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{block.type}</h4>
+                <pre
+                  className="text-xs font-mono p-2.5 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-muted/40 text-foreground max-h-[70vh]"
+                  data-testid={`json-text-block-${idx}`}
+                >
+                  {block.body}
+                </pre>
+              </div>
+            ))}
+          </div>
+        ) : showItems && multiItems !== null && multiPretty !== null ? (
           <div className="space-y-2">
             {multiPretty.map((pretty, idx) => (
               <div key={idx} className="rounded border border-border bg-card/60 overflow-hidden">
                 <div className="border-b border-border bg-interactive-secondary/60 px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
                   Item {idx + 1} of {multiItems.length}
                 </div>
-                <pre
-                  className="text-xs font-mono p-2.5 overflow-auto whitespace-pre-wrap break-words text-foreground max-h-[400px]"
-                  data-testid={`json-item-${idx}`}
-                >
-                  {pretty}
-                </pre>
+                {structuredItems?.[idx] !== undefined ? (
+                  <div className="p-2.5" data-testid={`json-item-${idx}`}>
+                    <StructuredValue value={structuredItems[idx]} />
+                  </div>
+                ) : (
+                  <pre
+                    className="text-xs font-mono p-2.5 overflow-auto whitespace-pre-wrap break-words text-foreground max-h-[400px]"
+                    data-testid={`json-item-${idx}`}
+                  >
+                    {pretty}
+                  </pre>
+                )}
               </div>
             ))}
           </div>
@@ -2879,11 +3017,12 @@ function FullContentPanel({
   fallback: unknown
 }) {
   const { data, isError } = useQuery({
-    queryKey: ['kyber-session-content', request.sessionId, request.span, request.part],
+    queryKey: ['kyber-session-content', request.sessionId, request.span, request.part, 'full'],
     queryFn: () =>
       fetchKyberSessionContent(request.sessionId, {
         span: request.span,
         part: request.part,
+        full: true,
       }),
   })
 
