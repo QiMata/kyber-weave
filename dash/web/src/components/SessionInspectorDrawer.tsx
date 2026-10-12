@@ -1005,10 +1005,12 @@ function parseTypedTextBlocks(text: string): Array<{ type: string; body: string 
   return blocks
 }
 
-function hasUnsafeNumber(value: unknown): boolean {
+function hasUnsafeNumber(value: unknown, depth = 0): boolean {
   if (typeof value === 'number') return Number.isInteger(value) && !Number.isSafeInteger(value)
-  if (Array.isArray(value)) return value.some(hasUnsafeNumber)
-  if (isRecord(value)) return Object.values(value).some(hasUnsafeNumber)
+  // Past the render depth cap nothing is structured-rendered, so stop walking.
+  if (depth > MAX_STRUCTURED_DEPTH) return false
+  if (Array.isArray(value)) return value.some((v) => hasUnsafeNumber(v, depth + 1))
+  if (isRecord(value)) return Object.values(value).some((v) => hasUnsafeNumber(v, depth + 1))
   return false
 }
 
@@ -2351,6 +2353,33 @@ export interface SessionContentRequest {
   sessionId: string
   span?: string
   part?: string
+  /** Narrow a `tool_definitions` blob to the one tool with this name. */
+  toolName?: string
+}
+
+/**
+ * Keep only the definition named `toolName` from a tool-definitions blob.
+ * Returns the original text when the blob is not a JSON array or nothing
+ * matches, so the panel never hides content it cannot attribute.
+ */
+export function narrowToolDefinitions(text: string, toolName: string | undefined): string {
+  if (!toolName) return text
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (!Array.isArray(parsed)) return text
+    const matches = parsed.filter((d) => {
+      const def = d as { name?: unknown; function?: { name?: unknown } } | null
+      return def?.name === toolName || def?.function?.name === toolName
+    })
+    return matches.length > 0 ? JSON.stringify(matches.length === 1 ? matches[0] : matches, null, 2) : text
+  } catch {
+    return text
+  }
+}
+
+function NarrowedInspectorContent({ text, toolName }: { text: string; toolName: string | undefined }) {
+  const narrowed = React.useMemo(() => narrowToolDefinitions(text, toolName), [text, toolName])
+  return <InspectorContent data={narrowed} />
 }
 
 /**
@@ -3080,7 +3109,7 @@ function FullContentPanel({
             data-testid="drawer-content-scroll"
           >
             <div className="p-3">
-              <InspectorContent data={part.text} />
+              <NarrowedInspectorContent text={part.text} toolName={request.toolName} />
             </div>
           </div>
         </div>
