@@ -5,7 +5,7 @@ description: "Reviews a change by fanning out a council of review lenses, runnin
 invocation: subagent
 model-profile: reviewer
 capability-profile: reviewer
-copilot-tools: [vscode, tool_search, execute, read, codegraph/*, kyber-weave/*, context7/*, search, agent, web, todo]
+copilot-tools: [vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent, search, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure, web, todo, "codegraph/*", "kyber-weave/*", "context7/*"]
 delegates-to: [azure-reader, review-lens, review-triage]
 fallback: role-skill
 aliases: []

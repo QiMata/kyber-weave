@@ -731,7 +731,10 @@ public sealed partial class HotshotGoldenContractTests
                 string[] actualTools = RequireYamlSequence(actualValue, "tools").Children
                     .Select(RequireYamlScalar)
                     .Where(tool => !PostGoldenToolAdditions.Contains(tool, StringComparer.Ordinal))
+                    .Select(CollapseGranularCopilotTool)
+                    .Distinct(StringComparer.Ordinal)
                     .ToArray();
+                actualTools = approvedToolOrder.Where(actualTools.Contains).ToArray();
                 AddSequenceMismatch(
                     mismatches,
                     $"{path} tools",
@@ -744,6 +747,26 @@ public sealed partial class HotshotGoldenContractTests
             string actualCanonical = CanonicalYaml(actualValue);
             AddMismatch(mismatches, $"{path} frontmatter.{property.Name}", expectedCanonical, actualCanonical);
         }
+    }
+
+    /// <summary>
+    /// Maps a granular Copilot tool back to the coarse tool set the historical golden snapshot
+    /// recorded, so group membership is still compared while granular narrowing is allowed.
+    /// </summary>
+    private static string CollapseGranularCopilotTool(string tool)
+    {
+        int slash = tool.IndexOf('/', StringComparison.Ordinal);
+        if (slash < 0 || tool.EndsWith("/*", StringComparison.Ordinal))
+        {
+            return tool;
+        }
+
+        return tool[..slash] switch
+        {
+            "vscodeTasks" => "execute",
+            "vscodeGeneral" => tool == "vscodeGeneral/rename" ? "edit" : tool == "vscodeGeneral/testFailure" ? "execute" : "vscode",
+            var group => group
+        };
     }
 
     private static string CanonicalJson(JsonElement element) => element.ValueKind switch

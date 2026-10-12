@@ -46,7 +46,29 @@ public sealed class CopilotRendererTests
                 "edit/createFile",
                 "edit/editFiles",
                 "edit/rename",
-                "vscodeGeneral/rename"
+                "vscodeGeneral/rename",
+                "vscode/runCommand",
+                "vscode/toolSearch",
+                "vscode/askQuestions",
+                "execute/getTerminalOutput",
+                "execute/killTerminal",
+                "execute/sendToTerminal",
+                "execute/runTask",
+                "execute/createAndRunTask",
+                "execute/runInTerminal",
+                "execute/testFailure",
+                "read/problems",
+                "read/readFile",
+                "read/viewImage",
+                "read/terminalSelection",
+                "read/terminalLastCommand",
+                "read/getTaskOutput",
+                "vscodeTasks/createAndRunTask",
+                "vscodeTasks/runTask",
+                "vscodeTasks/getTaskOutput",
+                "vscodeTasks/problems",
+                "vscodeGeneral/toolSearch",
+                "vscodeGeneral/testFailure"
             ],
             CopilotToolCatalog.OrderedTools);
     }
@@ -180,28 +202,28 @@ public sealed class CopilotRendererTests
     }
 
     [Theory]
-    [InlineData("architect", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit, agent]")]
-    [InlineData("azure-reader", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web]")]
+    [InlineData("architect", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, agent, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("azure-reader", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, vscode/toolSearch, vscode/askQuestions, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeGeneral/toolSearch]")]
     [InlineData("bug-crusher", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit, agent]")]
-    [InlineData("bug-crusher-investigator", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, web]")]
-    [InlineData("code-reviewer", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, web, agent]")]
-    [InlineData("conductor", "tools: [vscode, tool_search, read, todo, agent]")]
-    [InlineData("csharp-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("dal-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("docs-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit]")]
-    [InlineData("github-devops", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, web, edit]")]
-    [InlineData("maui-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("product-owner", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, edit, agent]")]
-    [InlineData("pulumi-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("python-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("react-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("research-agent", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web]")]
-    [InlineData("review-lens", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web]")]
-    [InlineData("review-triage", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web]")]
-    [InlineData("sql-database-architect", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("task-reviewer", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, web]")]
-    [InlineData("tauri-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
-    [InlineData("test-dev", "tools: [vscode, tool_search, read, todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, execute, edit]")]
+    [InlineData("bug-crusher-investigator", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("code-reviewer", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, agent, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("conductor", "tools: [todo, agent, vscode/askQuestions, read/problems, read/readFile, read/viewImage]")]
+    [InlineData("csharp-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("dal-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("docs-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/toolSearch, vscode/askQuestions, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeGeneral/toolSearch]")]
+    [InlineData("github-devops", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("maui-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("product-owner", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, agent, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/toolSearch, vscode/askQuestions, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeGeneral/toolSearch]")]
+    [InlineData("pulumi-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("python-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("react-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("research-agent", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, vscode/toolSearch, vscode/askQuestions, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeGeneral/toolSearch]")]
+    [InlineData("review-lens", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, vscode/toolSearch, vscode/askQuestions, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeGeneral/toolSearch]")]
+    [InlineData("review-triage", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, vscode/toolSearch, vscode/askQuestions, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeGeneral/toolSearch]")]
+    [InlineData("sql-database-architect", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("task-reviewer", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, web, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("tauri-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
+    [InlineData("test-dev", "tools: [todo, 'codegraph/*', 'kyber-weave/*', 'context7/*', search, edit/createFile, edit/editFiles, edit/rename, vscodeGeneral/rename, vscode/runCommand, vscode/toolSearch, vscode/askQuestions, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, vscodeTasks/createAndRunTask, vscodeTasks/runTask, vscodeTasks/getTaskOutput, vscodeTasks/problems, vscodeGeneral/toolSearch, vscodeGeneral/testFailure]")]
     public async Task RenderAsync_EmitsDeterministicCanonicalToolOrdering(string agentName, string expectedToolsLine)
     {
         SquadRendererRegistry registry = new([new CopilotRenderer()]);
