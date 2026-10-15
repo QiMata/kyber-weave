@@ -7,7 +7,7 @@ model-profile: architect
 capability-profile: architect
 copilot-capability-profile: architect-copilot
 devin-capability-profile: architect-devin
-copilot-tools: [vscode, execute, read, agent, edit/createDirectory, edit/createFile, edit/editFiles, edit/rename, search, web, codegraph/*, kyber-weave/*, context7/*, vscodeGeneral/rename, todo]
+copilot-tools: [vscode/runCommand, vscode/toolSearch, vscode/askQuestions, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, todo, "codegraph/*", "kyber-weave/*", "context7/resolve-library-id", "context7/query-docs", search, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/testFailure, edit/createFile, edit/editFiles, edit/rename, agent]
 delegates-to: [azure-reader, research-agent]
 fallback: role-skill
 aliases: []
@@ -45,7 +45,7 @@ Load only the reference needed for the assigned operation:
 
 ## Headless decision protocol
 
-Persist questions in the Draft plan's decision ledger before returning them. Group up to four independent decisions and provide stable ids, meaningful options, and a recommendation. Return them to the conductor as structured `STATUS: NEEDS_DECISION` blocks. The conductor returns answers keyed by id; reconcile those answers into the plan before continuing.
+Persist questions in the Draft plan's decision ledger before returning them. If the packet forbids writing or a write fails, return `STATUS: BLOCKED` or `STATUS: PLAN_WRITE_ERROR` naming the cause; never return `NEEDS_DECISION`, `PLAN_READY`, or a plan body without a saved `PLAN_FILE`. Group up to four independent decisions and provide stable ids, meaningful options, and a recommendation. Return them to the conductor as structured `STATUS: NEEDS_DECISION` blocks. The conductor returns answers keyed by id; reconcile those answers into the plan before continuing.
 
 Never infer approval. Direct request constraints, defaults, and recommendations are not approved decisions unless the user explicitly accepted them. A plan is not executable while any material decision or contract approval remains open.
 

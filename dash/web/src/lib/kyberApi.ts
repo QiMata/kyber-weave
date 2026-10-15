@@ -148,6 +148,15 @@ export async function fetchProblemDetail(id: string): Promise<KyberProblemDetail
   return fetchJson<KyberProblemDetail>(`/api/kyber/problem/${encodeURIComponent(id)}`)
 }
 
+export interface SessionRollup {
+  turn_count?: number | null
+  request_count?: number | null
+  total_input?: number | null
+  total_output?: number | null
+  tokens?: number | null
+  cost_usd?: number | null
+}
+
 export interface KyberSessionSummary {
   session_id: string
   sessionId?: string
@@ -174,6 +183,8 @@ export interface KyberSessionSummary {
   cost?: { basis: string; status: string; value?: number; currency?: string }
   models?: string[]
   problems?: number
+  subagents?: KyberSessionSummary[]
+  rollup?: SessionRollup
 }
 
 /**
@@ -469,11 +480,12 @@ export interface KyberSessionContentResult {
 
 export function fetchKyberSessionContent(
   sessionId: string,
-  opts?: { span?: string; part?: string },
+  opts?: { span?: string; part?: string; full?: boolean },
 ): Promise<KyberSessionContentResult> {
   const params = new URLSearchParams()
   if (opts?.span) params.set('span', opts.span)
   if (opts?.part) params.set('part', opts.part)
+  if (opts?.full) params.set('full', 'true')
   const qs = params.toString()
   const path = `/api/kyber/session/${encodeURIComponent(sessionId)}/content${qs ? `?${qs}` : ''}`
   return fetchJson<KyberSessionContentResult>(path)
@@ -544,6 +556,8 @@ export interface KyberTurnContentResult {
     parts: Array<{ text: string; spanId?: string; turnIndex?: number; truncated?: boolean; totalLength?: number }>
     seenBefore: boolean
   } | null
+  /** The skills this turn listed and invoked; absent on a turn that predates the skills projection. */
+  skills?: KyberTurnSkillsEntry
 }
 
 export function fetchTurnContent(
@@ -1415,12 +1429,17 @@ export interface KyberJobStatus {
   hostedElsewhere: boolean
 }
 
-/** The shared settings both display layers read and write over one API. */
+/**
+ * The shared settings both display layers read and write over one API.
+ * `dashboardPort` is the persisted `settings.dashboard.port` (default 4747): it applies
+ * on the next engine restart, never to the running server.
+ */
 export interface KyberSettings {
   folderImportScheduled: boolean
   jobsPaused: boolean
   refreshCadenceMinutes: number
   receiverHosted: boolean
+  dashboardPort: number
 }
 
 /** A partial `PUT /api/kyber/settings` body — every key is optional. */
@@ -1638,11 +1657,20 @@ export interface KyberCaptureRefusal {
   events: KyberCaptureEvent[]
 }
 
-/** Exactly the three keys the route accepts. */
+/** Exactly the documented keys the route accepts. */
 export interface KyberCaptureRequest {
   action: KyberCaptureAction
   harness: string
   dryRun: boolean
+  /**
+   * Settings-only opt-in: on Disable with no receipt, remove only this
+   * harness's declared OTEL keys that are present (user-authorized in the
+   * Settings drawer, previewed before writing). Defaults to false: omitted
+   * or false keeps the receipt-only behavior for the CLI and all callers.
+   */
+  removeUnreceiptedKeys?: boolean
+  /** Exact Settings preview echoed on confirmed manual-key removal. */
+  expectedPreviewEvents?: KyberCaptureEvent[]
 }
 
 type Raw = Record<string, unknown>
@@ -1831,7 +1859,7 @@ function parseCaptureRefusal(raw: unknown): KyberCaptureRefusal {
 
 /**
  * `POST /api/kyber/capture`. A dry run previews; a real request writes. The
- * body is built from exactly the three documented keys, so nothing a caller
+ * body is built from exactly the documented keys, so nothing a caller
  * adds can reach the route. A 409 is the server declining (drift, conflict, an
  * unreadable file) and is RETURNED as a refusal for the UI to show; every other
  * non-2xx throws `KyberApiError`.
@@ -1842,9 +1870,82 @@ export async function postKyberCapture(
   const res = await fetch(CAPTURE_PATH, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ action: request.action, harness: request.harness, dryRun: request.dryRun }),
+    body: JSON.stringify(
+      request.removeUnreceiptedKeys === true
+        ? {
+            action: request.action,
+            harness: request.harness,
+            dryRun: request.dryRun,
+            removeUnreceiptedKeys: true,
+            ...(request.expectedPreviewEvents === undefined ? {} : { expectedPreviewEvents: request.expectedPreviewEvents }),
+          }
+        : { action: request.action, harness: request.harness, dryRun: request.dryRun },
+    ),
   })
   if (res.status === 409) return parseCaptureRefusal(await res.json().catch(() => null))
   if (!res.ok) throw new KyberApiError(res.status, CAPTURE_PATH)
   return parseCaptureResult(await res.json().catch(() => null), res.status)
 }
+
+// ---------------------------------------------------------------------------
+// Skills (session payload section "4 · Skills")
+// ---------------------------------------------------------------------------
+
+/**
+ * A value the harness did not export. The reason is the harness's own
+ * explanation, shown verbatim; a panel never turns it into a 0 or an empty list.
+ */
+export type KyberSkillAvailability = {
+  availability: 'not_measurable'
+  reason: string
+}
+
+/** One skill from the session's `skills.rows`. `turns_listed` is 0-based transport indices. */
+export type KyberSkillRow = {
+  name: string
+  listed: boolean | KyberSkillAvailability
+  invocations: number | KyberSkillAvailability
+  turns_listed: number[]
+  /** Engine-derived token estimate; labelled as derived wherever it is shown. */
+  derived_tokens?: number
+}
+
+/** The session payload's `skills` block: measured rows, or a whole-block not-measurable verdict. */
+export type KyberSkillsBlock =
+  | {
+      measurable: true
+      /** Harness-reported aggregate for skill listings; absent when the harness did not report one. */
+      reported_skill_tokens?: number
+      /** Served count of skills listed to the agent; absent when not measured. The browser never counts rows. */
+      listed_count?: number
+      /** Served count of listed skills with no observed invocation; absent when not measured. */
+      listed_uninvoked_count?: number
+      rows: KyberSkillRow[]
+    }
+  | KyberSkillAvailability
+
+/**
+ * The skills fields the session summary carries. Each array is absent when
+ * that fact was not measured, and absence is never read as an empty list.
+ */
+export type KyberSkillsSummary = {
+  skills_listed?: string[] | null
+  skills_invoked?: string[] | null
+}
+
+/** One skill listed in a turn, with the listing text the harness exported (absent when not recorded). */
+export type KyberTurnSkillListing = {
+  name: string
+  text?: string
+}
+
+/**
+ * A turn's `skills` entry on the turn-content route. Either side may be a
+ * not-measurable verdict, and the whole entry may be one.
+ */
+export type KyberTurnSkillsEntry =
+  | {
+      listed: KyberTurnSkillListing[] | KyberSkillAvailability
+      invoked: string[] | KyberSkillAvailability
+    }
+  | KyberSkillAvailability

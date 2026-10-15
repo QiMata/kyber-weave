@@ -5,7 +5,7 @@ doc-type: architecture
 component: KyberSquad
 source-root: src/KyberWeave.Core/Squad
 owner: dpalfery
-last-reviewed: 2026-10-10
+last-reviewed: 2026-10-14
 status: current
 decided-by:
   - adr/0017-copilot-deterministic-tool-order
@@ -15,6 +15,7 @@ decided-by:
   - adr/0025-devin-native-agents-and-skill-lowering
   - adr/0028-devin-target-scoped-authoring-capability-profiles
   - adr/0034-factory-droid-entry-point-skill
+  - adr/0037-squad-state-in-user-home
 keywords:
   - multi-harness
   - deployment
@@ -24,9 +25,14 @@ keywords:
   - JEV
   - oscillation
   - failure-cluster
+  - home-state
+  - registry
+  - migration
+  - migration-ledger
 code-refs:
   - SquadTransaction
   - SquadStateStore
+  - SquadStateMigration
   - SquadTargetResolver
   - SquadSourceLoader
   - ISquadRenderer
@@ -79,7 +85,7 @@ flowchart TD
         Mutex["OS Named Mutex Lease\n(kyber-weave-squad-root-key)"]
         Journal["Write-Ahead Prepared Journal\n(SquadArtifactAuthority)"]
         Transaction["SquadTransaction\n(No-Overwrite Claim/Publish)"]
-        StateStore["SquadStateStore\n(squad.lock.yml / squad.receipt.json)"]
+        StateStore["SquadStateStore\n(squad.lock.yml / squad.receipt.json in ~/.kyber-weave/squad/)"]
     end
 
     subgraph TargetHarnesses["Declared Target Harnesses"]
@@ -136,15 +142,24 @@ Targets without native agent primitives use **agent-to-role-skill lowering**, go
 this projection; Antigravity was previously classified as fallback and has been reclassified to native
 ([ADR 0022](../adr/0022-antigravity-native-agents.md)).
 
-The current canonical agent and skill namespaces intersect at exactly seven names. Every
-intersection is a distinct-body collision; the product declares no shared identities:
+The current canonical agent and skill namespaces intersect at eight names. Two of those
+intersections — `product-owner` and `bug-crusher` — are **primary shared identities**: root agents
+whose body is a thin wrapper pointing at the same-name canonical skill, which carries the role
+([ADR 0036](../adr/0036-primary-agent-canonical-skill-entry-point.md)). The remaining six are
+distinct-body collisions. The primary shared identities reuse the canonical skill as their entry
+point, so no `role-` projection is generated for them:
 
 ```mermaid
 flowchart TD
     Intersection{"Agent & Skill Name\nIntersection Check"}
-    
-    Intersection -->|"Seven Distinct-Body Collisions\n(csharp-dev, dal-dev, etc.)"| CollisionPath["Distinct Workflows & Roles"]
-    Intersection -->|"No Skill Collision\n(including conductors)"| UnoccupiedPath["Unoccupied Identity"]
+
+    Intersection -->|"Two Primary Shared Identities\n(product-owner, bug-crusher)"| SharedPath["Thin Wrapper: Canonical Skill\nIs the Entry Point"]
+    Intersection -->|"Six Distinct-Body Collisions\n(csharp-dev, dal-dev, etc.)"| CollisionPath["Distinct Workflows & Roles"]
+    Intersection -->|"No Skill Collision\n(conductor)"| UnoccupiedPath["Unoccupied Identity"]
+
+    SharedPath --> SharedCheck{"Target Native\nAgent Support?"}
+    SharedCheck -->|"Yes"| SharedNative["Emit Native Agent + Canonical Skill\n(Entry Point; No Duplicate)"]
+    SharedCheck -->|"No"| SharedLower["Reuse Canonical Skill as Entry Point"]
 
     CollisionPath --> FallbackCheck{"Target has Native\nAgent Support?"}
     FallbackCheck -->|"Yes"| NativeBoth["Emit Native Agent + Canonical Skill\n(Different Namespaces)"]
@@ -157,26 +172,37 @@ flowchart TD
 
 ### Resolution Rules
 
-1. **Distinct-Body Collisions (`csharp-dev`, `dal-dev`, `github-devops`, `maui-dev`, `product-owner`, `python-dev`, `test-dev`)**:
+1. **Primary Shared Identities (`product-owner`, `bug-crusher`)**:
+   - The agent body is a thin wrapper that loads and follows the same-name canonical skill; the
+     skill carries the role. The two bodies differ by design, and the source validator permits
+     that only for a `primary`-invocation shared identity.
+   - The canonical skill is the entry point and is always emitted. A target that renders a primary
+     through an additional entry-point form (Claude, Factory) emits the agent file plus the
+     canonical skill and no duplicate; a target that lowers a primary onto a skill or command
+     (Cursor, Pi, ZCode, Devin, Warp) reuses the canonical skill and emits no projection of its own.
+   - No `role-<name>` projection is generated, and no skill projection is suppressed.
+2. **Distinct-Body Collisions (`csharp-dev`, `dal-dev`, `github-devops`, `maui-dev`, `python-dev`, `test-dev`)**:
    - The canonical skill and agent serve distinct functions.
    - On fallback targets, the canonical skill stays at `<name>`, and the agent instruction body is projected to `role-<name>`.
    - `role-` is reserved exclusively for generated projections; no canonical source file may use the `role-` prefix.
-2. **Unoccupied Identities**:
+3. **Unoccupied Identities**:
    - Agents with no matching skill name lower directly to `<name>` as a skill on fallback targets.
    - `conductor` follows this rule because it has no canonical skill. The fallback profile's
-     `shared-identities` list is empty, and the canonical catalog carries no version aliases.
+     `shared-identities` list names only the two primary shared identities above, and the canonical
+     catalog carries no version aliases.
 
 ### Native Branch: Pi with Primary-Agent Lowering
 
 Pi is a native agent target ([ADR 0019](../adr/0019-pi-native-subagents-and-primary-lowering.md))
-that projects subagents natively but lowers its one primary-invocation
-agent (`conductor`) to a skill, per its fallback profile's `no-primary-agent: skill` value. Pi
+that projects subagents natively but lowers its primary-invocation
+agents to a skill, per the fallback profile's `no-primary-agent: skill` value. Pi
 core has no primary-agent primitive: `.pi/SYSTEM.md` or `--system-prompt` replaces the whole
 session prompt. Rendering `conductor` as a subagent instead would place it at depth 1, pushing its
 delegated specialists to depth 2 — where Pi's default `maxSubagentDepth: 2` removes the nested
 delegation that `architect` and `code-reviewer` need. Lowering it to a top-level skill keeps it at
 depth 0, where the extension's `Agent` tool is available, and its specialists' nested rosters
-still work.
+still work. The two primary shared identities lower the same way, except that their canonical skill
+already exists and is reused as the entry point rather than a lowered copy being emitted.
 
 ### Native Branch: Claude with a Primary-Agent Entry-Point Skill
 
@@ -188,10 +214,18 @@ is ignored and the Agent tool may be unavailable (spawn depth 1 in cloud session
 
 When a primary agent's fallback profile declares `no-primary-agent: skill`, Claude renders **both**
 the subagent at `.claude/agents/<name>.md` (kept for enforced invocation) **and** an entry-point
-skill at `.claude/skills/<name>/SKILL.md`, invoked as `/<name>` in the main conversation. The skill
-is byte-identical to the subagent body and carries exactly three frontmatter keys: `name`,
-`description` (collapsed to one line), and `license: MIT`. Its resources project beside it as with
-other skills.
+skill at `.claude/skills/<name>/SKILL.md`, invoked as `/<name>` in the main conversation. For a
+non-shared primary the entry-point skill is derived from the agent: it is byte-identical to the
+subagent body and carries exactly three frontmatter keys — `name`, `description` (collapsed to one
+line), and `license: MIT`. Its resources project beside it as with other skills.
+
+**A primary shared identity reuses its canonical skill as the entry point.** For `product-owner`
+and `bug-crusher` the canonical skill already occupies `.claude/skills/<name>/SKILL.md` and carries
+the role, so the renderer emits the subagent file plus the canonical skill and does **not** emit a
+duplicate entry-point skill ([ADR 0036](../adr/0036-primary-agent-canonical-skill-entry-point.md)).
+Emitting both would project one identity twice and would overwrite the role-carrying skill with the
+wrapper body. The canonical skill's body differs from the subagent body by design here — the
+wrapper points at the skill — so the "byte-identical" rule applies only to a derived entry point.
 
 The skill's description stays in Claude's context, so Claude may auto-load `/<name>` into the main
 conversation without the user typing it. The degradation records account for this unenforced
@@ -203,12 +237,15 @@ Claude is the first native target where a single agent emits two distinct princi
 entry-point skill). Under `no-primary-agent: omit`, no entry-point skill is emitted and the agent's
 records remain unchanged.
 
-**Fail-closed on canonical skill collision.** If a canonical skill occupies the entry-point
-identity, the render fails with a `SquadRenderValidationException` rather than resolving the
-collision through role-prefixing. The canonical skill and entry-point skill would both claim
-`.claude/skills/<name>/SKILL.md`. Separately, Claude resolves personal skills before project
-skills but project agents before user agents, so mixed-scope installs can expose `/<name>` and
-`@agent-<name>` from different versions.
+**Fail-closed on an unresolvable canonical skill collision.** If a canonical skill occupies the
+entry-point identity and the agent is **not** a declared shared identity, the render fails with a
+`SquadRenderValidationException` rather than resolving the collision through role-prefixing. The
+canonical skill and the derived entry-point skill would both claim
+`.claude/skills/<name>/SKILL.md`, and a native target has no role-prefixed escape hatch. A declared
+shared identity is the resolvable case: the canonical skill is the entry point and no duplicate is
+emitted. Separately, Claude resolves personal skills before project skills but project agents
+before user agents, so mixed-scope installs can expose `/<name>` and `@agent-<name>` from different
+versions.
 
 **Rejected alternatives:**
 - Legacy `.claude/commands/conductor.md` command: Claude Code registers files under
@@ -243,23 +280,138 @@ Squad deployments maintain rigorous state and concurrency boundaries:
 - **Root Hash Key**: The lowercase SHA-256 hash of the canonical physical path forms `<root-key>`. Lexical or symlink aliases of the same physical root converge onto the same state root and lease.
 - **Filesystem Path Semantics**: `SquadFileSystemPathSemantics` enforces case-exact matching against disk segments, preventing accidental case-folding on case-insensitive filesystems while respecting case-distinct directories on case-sensitive filesystems.
 
+### State Location and Layout
+
+Lock and receipt state no longer lives in the repository. It lives under the user's home directory
+([ADR 0037](../adr/0037-squad-state-in-user-home.md)):
+
+```mermaid
+flowchart LR
+    subgraph Home["~/.kyber-weave/squad/"]
+        Registry["registry.json\n(kyber-squad.registry/v1)"]
+        Ledger["migration-ledger.json\n(kyber-squad.migration-ledger/v1)"]
+        Global["global/\nsquad.lock.yml\nsquad.receipt.json"]
+        Projects["projects/root-key/\nsquad.lock.yml\nsquad.receipt.json"]
+    end
+    Legacy["Legacy sources (read by migration only)\nKyberWeave/squad/roots/root-key/\n.kyber-weave/squad.* in each repository"]
+    Legacy -.->|"migrated, never deleted"| Global
+    Legacy -.->|"migrated, never deleted"| Projects
+    Projects -->|"indexed by root key"| Registry
+    Legacy -.->|"recorded once per source"| Ledger
+```
+
+- **Home state root**: `<home>/.kyber-weave/squad/`, where `<home>` is `ISquadUserPaths.HomeDirectory`
+  (the user profile in production). Tests inject a temporary home and never touch the real one.
+- **Global state**: `global/squad.lock.yml` and `global/squad.receipt.json`. The global anchor is the
+  home directory. Under `--global`, the positional path, `--path`, and the working directory are
+  not consulted.
+- **Project state**: `projects/<root-key>/squad.lock.yml` and `projects/<root-key>/squad.receipt.json`.
+  `<root-key>` is `SquadPhysicalRootIdentity.Key`, so lexical and symbolic-link spellings of one
+  directory converge on one entry.
+- **Legacy sources**: the application-data tree `KyberWeave/squad/roots/<root-key>/` and each
+  repository's in-repo `.kyber-weave/squad.lock.yml` and `squad.receipt.json`. Migration reads them and
+  never deletes them. The application-data directory is no longer a state location; rendering's own
+  user-scope directory is unchanged.
+
 ### Cross-Process Mutex Lease
 
 - **Named OS Mutex**: Every mutating operation acquires an exclusive OS-named mutex (`kyber-weave-squad-<root-key>`).
-- **Scope-Independent Contention**: Project-scoped and global-scoped operations targeting the same physical root contend for the exact same mutex, preventing concurrent corruption.
+  For global scope the key is the hash of the physical home directory.
+- **Scope-Independent Contention**: Project-scoped and global-scoped operations targeting the same physical root contend for the exact same mutex, preventing concurrent corruption. A project installed at the home directory therefore shares the global mutex.
+- **Per-Root Work Directory**: The transaction work directory and journal stay with the physical root. Project scope uses `<root>/.kyber-weave/.squad-transaction`; global scope uses `<home>/.kyber-weave/.squad-transaction`. Only the receipt and lock move to the home state root.
 - **Precondition Reverification**: After acquiring the lease, all preconditions and path containment assertions are re-evaluated immediately before filesystem operations.
+
+### Registry
+
+`<home>/.kyber-weave/squad/registry.json` (schema `kyber-squad.registry/v1`) indexes project roots so
+that a global update, `status --global`, and `doctor` can find them. Each entry is keyed by root key and
+holds the physical path, the last update time in UTC, and the targets deployed.
+
+- **Maintenance**: project install, update, and import upsert an entry; project uninstall removes it.
+  Every write is atomic (temporary file, then rename). Global state is not registered.
+- **Index, not authority**: `ListProjects` reads each entry and marks it `Stale` with a reason when
+  the path is missing, the physical key no longer matches the path, or the receipt under
+  `projects/<root-key>/` is missing. It also rebuilds an entry for any receipt under `projects/<root-key>/`
+  that has no registry row. A deployment is never read from the registry alone.
+- **Reconciliation**: `ListProjects` persists the rebuilt registry only when a caller lists it through
+  the persisting path. In the CLI that is `squad status --global`, `squad update --global` (when it lists
+  projects for its picker), and `squad doctor`. No other verb reconciles it. Lookups never write:
+  resolving a named `--projects` path uses `FindProject`, and migration's single-root binding lookup uses
+  `ListProjectsWithoutRebuild`. A receipt that does not parse is left out of the rebuild, so the other
+  projects still list. An unreadable registry file makes `squad status --global` and `squad doctor` fail
+  and name it.
+- **Stale entries**: no command unregisters an entry. `SquadStateStore.UnregisterProject` is called only
+  by project uninstall, so an entry whose directory no longer exists stays flagged until that path
+  returns. `squad update --global --projects` warns about and skips a stale named path.
+- **Write failure**: a registry write that fails after the transaction has committed produces a
+  warning that names the remedy, rerunning `kyber-weave squad status --global`. The transaction is not
+  failed.
 
 ### Lock and Receipt Files
 
+Lock and receipt files are not committed to the repository. Squad writes them to the home state
+root. The in-repo copies of earlier releases are read by migration and retained for rollback.
+
 - **`squad.lock.yml`**: Contains bundle metadata, versions, target lists, exclusions, translation mode, and bundle digests. Also carries a vestigial upstream-toolchain identity field, kept for schema stability now that rendering no longer depends on an external toolchain; it reads `unverified` on every install.
-- **`squad.receipt.json`**: Records scope, installation timestamp, structured degradation records, and an ordered manifest of owned files with relative paths and SHA-256 digests.
+- **`squad.receipt.json`**: Records scope, installation timestamp, structured degradation records, and an ordered manifest of owned files with relative paths and SHA-256 digests. Its `targetRoot` is the canonical absolute physical root for a project receipt (receipts written with `"."` remain readable). A global receipt records the home anchor, or the resolved binding root for a migrated legacy single-root receipt.
 
 #### Receipt version and layout contract
 
-- **Global scope**: receipts serialize as `kyber-squad.receipt/v2` and carry a required `layout` field specifying `single-root` (all paths target-prefixed, legacy rc.9/rc.10 format) or `per-target-roots` (bare paths, rc.11+). Project-scope receipts remain v1 with no layout field.
+- **Global scope**: receipts serialize as `kyber-squad.receipt/v2` and carry a required `layout` field specifying `single-root` (all paths target-prefixed, legacy rc.9/rc.10 format) or `per-target-roots` (bare paths, rc.11+). There is one global receipt, at `global/squad.receipt.json` under the home state root; sibling global receipts are retired.
+- **Project scope**: receipts remain v1 with no layout field. Since [ADR 0037](../adr/0037-squad-state-in-user-home.md) they record the canonical physical root in `targetRoot` instead of `"."`, which amends the byte-identical rule of [ADR 0024](../adr/0024-squad-global-receipt-layout-marker.md).
 - **Legacy v1 global receipts** (pre-#91): classified by examining paths in the receipt. If every entry is target-prefixed (e.g., `.codex/agents/x.toml`), it is treated as `single-root` layout. If no entry is prefixed, it is `per-target-roots`. A receipt mixing both patterns is invalid. A v2 receipt whose declared `layout` contradicts its paths is rejected the same way.
 - **Compatibility**: CLI versions before the v2 layout marker refuse a v2 global receipt with exit code 1 and do not modify any files. Upgrade the CLI to proceed.
 - **Legacy recovery**: for an rc.9/rc.10 single-root install, `status` and `uninstall` operate against the recorded deployment root; `update` and same-target `install` refuse with guidance to run `kyber-weave squad uninstall --global` followed by `kyber-weave squad install --global`.
+
+#### Migration from earlier layouts
+
+A single shared helper, `SquadStateMigration`, runs before every squad verb (`install`, `update`,
+`status`, `uninstall`, and `doctor`). It is automatic, non-destructive, and idempotent. It deletes
+no file, and running it again after it has succeeded changes nothing.
+
+- **Empty roots** under the legacy application-data tree are ignored.
+- **One legacy global receipt, no home global receipt**: the receipt and lock are copied to
+  `global/`, and `targetRoot` is set as described above. The legacy files are left in place.
+- **Per-target-roots legacy receipt**: needs no root. **Single-root legacy receipt**: its binding root
+  is resolved in this order: an absolute `targetRoot`, then the registry, then a key match against the
+  home directory or the invoking directory. A receipt whose root cannot be resolved is not migrated
+  and is reported.
+- **More than one non-empty legacy global receipt**: none is migrated. Each is reported with
+  guidance. Migration does not guess.
+- **Home global receipt already present**: migration does nothing.
+- **Project import**: when a project-scope verb, or a picker-driven update, touches root `R`, and
+  `projects/<root-key(R)>/` has no receipt while `R/.kyber-weave/squad.receipt.json` exists, the receipt
+  and lock are imported, `targetRoot` is set, and `R` is registered. The in-repo files are left untouched.
+  Home state takes precedence from then on, and `doctor` warns that the retained in-repo state should
+  be removed from version control.
+- **Dry run**: under `--dry-run` nothing is written, including the ledger. The run reports that the legacy
+  state at each path will be migrated on the next invocation without `--dry-run`. Install, update, and
+  uninstall stop after that report.
+- **Lease**: every copy and import runs under the transaction lease for the root. A busy lease writes
+  nothing, reports a warning, and leaves the legacy files in place for the next run.
+- **Write order**: a global copy writes the lock and then the receipt, which is the completion marker.
+  A lock with no receipt is completed on the next run when the home lock is byte-identical to the source
+  lock; a different home lock blocks the copy and is reported.
+- **Doctor writes**: `squad doctor` runs the same migration as the other verbs, so it can write.
+
+#### Migration ledger
+
+`<home>/.kyber-weave/squad/migration-ledger.json` (schema `kyber-squad.migration-ledger/v1`) records each
+completed global copy and project import, so migration is one-shot per source:
+
+```json
+{ "globalMigratedFrom": ["<legacy-root-key>"], "projectsImported": ["<root-key>"] }
+```
+
+- A global copy records its legacy root key after the receipt is written. A project import records the
+  project's root key inside the lease that writes its state.
+- A recorded source is never copied or imported again. An uninstall of migrated state therefore stays
+  uninstalled while the legacy files it was copied from are retained. Doctor lists such a global root
+  among the unmigrated legacy roots, with the reason that it was already migrated.
+- The ledger gates only legacy copies and imports. Every verb runs migration first, but home state is
+  never blocked by the ledger, so a fresh install after an uninstall is unaffected.
+- A malformed or unreadable ledger is treated as empty, and a warning says so. The next successful write
+  replaces it with a valid one.
 
 ---
 
@@ -356,12 +508,12 @@ and validates.
   `PiRenderer` for native subagent projection to `.pi/agents/*.md` and `.pi/skills/*/SKILL.md` with primary-agent lowering ([ADR 0019](../adr/0019-pi-native-subagents-and-primary-lowering.md)),
   `FactoryRenderer` for `.factory/droids/*.md` and `.factory/skills/*/SKILL.md`,
   `WarpRenderer` for fallback role-skill lowering to `.warp/skills/*/SKILL.md`,
-  `ZCodeRenderer` for `.zcode/agents/*.md` and `.zcode/skills/*/SKILL.md` with the primary agent lowered to a slash command at `.zcode/commands/*.md` ([ADR 0021](../adr/0021-zcode-command-lowering-and-resource-relocation.md)),
-  and `DevinRenderer` for Devin Desktop's local agent: per-agent directories at `.devin/agents/*/AGENT.md` and skills at `.devin/skills/*/SKILL.md`, with the primary agent lowered to a skill ([ADR 0025](../adr/0025-devin-native-agents-and-skill-lowering.md)).
+  `ZCodeRenderer` for `.zcode/agents/*.md` and `.zcode/skills/*/SKILL.md` with primary agents lowered to slash commands at `.zcode/commands/*.md` ([ADR 0021](../adr/0021-zcode-command-lowering-and-resource-relocation.md)),
+  and `DevinRenderer` for Devin Desktop's local agent: per-agent directories at `.devin/agents/*/AGENT.md` and skills at `.devin/skills/*/SKILL.md`, with primary agents lowered to a skill ([ADR 0025](../adr/0025-devin-native-agents-and-skill-lowering.md)).
 
 | Target | Renderer | Agent Output | Skill Output | Kind |
 |---|---|---|---|---|
-| `claude` | `ClaudeRenderer` | `.claude/agents/<name>.md`; primary agent also at `.claude/skills/<name>/SKILL.md` | `.claude/skills/<name>/SKILL.md` | Native |
+| `claude` | `ClaudeRenderer` | `.claude/agents/<name>.md`; primary agents also at `.claude/skills/<name>/SKILL.md` | `.claude/skills/<name>/SKILL.md` | Native |
 | `copilot` | `CopilotRenderer` | `.github/agents/<name>.agent.md` | `.github/skills/<name>/SKILL.md` | Native |
 | `cursor` | `CursorRenderer` | `.cursor/agents/<name>.md` | `.cursor/skills/<name>/SKILL.md` | Native |
 | `codex` | `CodexRenderer` | `.codex/agents/<name>.toml` | `.codex/skills/<name>/SKILL.md` | Native |
@@ -371,7 +523,7 @@ and validates.
 | `pi` | `PiRenderer` | `.pi/agents/<name>.md` | `.pi/skills/<name>/SKILL.md` (conductor lowered here) | Native |
 | `factory` | `FactoryRenderer` | `.factory/droids/<name>.md` | `.factory/skills/<name>/SKILL.md` | Native |
 | `warp` | `WarpRenderer` | `.warp/skills/role-<name>/SKILL.md` (lowered; see [§3](#3-role-skill-lowering-and-namespace-resolution)) | `.warp/skills/<name>/SKILL.md` | Fallback |
-| `zcode` | `ZCodeRenderer` | `.zcode/agents/<name>.md`; the primary agent lowers to `.zcode/commands/<name>.md` | `.zcode/skills/<name>/SKILL.md` | Native |
+| `zcode` | `ZCodeRenderer` | `.zcode/agents/<name>.md`; primary agents lower to `.zcode/commands/<name>.md` | `.zcode/skills/<name>/SKILL.md` | Native |
 | `devin` | `DevinRenderer` | `.devin/agents/<name>/AGENT.md` | `.devin/skills/<name>/SKILL.md` (conductor lowered here) | Native |
 
 - **Target-scoped projection inputs**: each canonical agent declares exact `copilot-tools`, and may
@@ -389,7 +541,7 @@ and validates.
   ([ADR 0028](../adr/0028-devin-target-scoped-authoring-capability-profiles.md)).
 - **Copilot tool order ([ADR 0017](../adr/0017-copilot-deterministic-tool-order.md))**:
   `CopilotRenderer` emits `CopilotToolCatalog.Normalize(agent.CopilotTools)` — membership from
-  the agent, order from one global catalog sequence (`vscode`, `read`, `todo`, MCP wildcards,
+  the agent, order from one global catalog sequence (`vscode`, `tool_search`, `read`, `todo`, MCP wildcards,
   then search/execute/web/edit/agent and the granular edit tools). Normalization never adds a
   tool the agent omitted and never reorders per agent. Capability bindings are an upper bound
   at load/validation time, not a second membership source. Wildcards remain single-quoted in
@@ -540,13 +692,12 @@ and validates.
 - **Generated-output boundary**: target-rendered `.github` files are deployment output, not
   canonical product or package source, and this synchronization does not add a generated target
   tree to `products/kyber-squad/`.
-- **Coverage today**: `claude` (native subagents with primary-agent entry-point skill), `copilot` (native), `cursor` (native), `codex` (native: `.codex/agents/*.toml` + `.codex/skills/*/SKILL.md`), `antigravity` (native: `.agents/agents/*/agent.md` + `.agents/skills/*/SKILL.md`, [ADR 0022](../adr/0022-antigravity-native-agents.md)), `opencode` (native: `.opencode/agents/*.md` + `.opencode/skills/*/SKILL.md`), `kilo` (native: `.kilo/agents/*.md` + `.kilo/skills/*/SKILL.md`), `pi` (native subagents with primary-agent lowering to `.pi/agents/*.md` and `.pi/skills/*/SKILL.md`), `factory` (native: `.factory/droids/*.md` + `.factory/skills/*/SKILL.md`, with the primary agent additionally exposed as an entry-point skill, [ADR 0034](../adr/0034-factory-droid-entry-point-skill.md)), `warp` (fallback role-skill lowering to `.warp/skills/`), `zcode` (native: `.zcode/agents/*.md` + `.zcode/skills/*/SKILL.md`, with the primary agent lowered to `.zcode/commands/*.md`), and `devin` (native: `.devin/agents/*/AGENT.md` + `.devin/skills/*/SKILL.md`, with the primary agent lowered to a skill) are implemented and registered. All twelve declared targets are covered. `kyber-weave squad doctor` reports which
+- **Coverage today**: `claude` (native subagents with primary-agent entry-point skill), `copilot` (native), `cursor` (native), `codex` (native: `.codex/agents/*.toml` + `.codex/skills/*/SKILL.md`), `antigravity` (native: `.agents/agents/*/agent.md` + `.agents/skills/*/SKILL.md`, [ADR 0022](../adr/0022-antigravity-native-agents.md)), `opencode` (native: `.opencode/agents/*.md` + `.opencode/skills/*/SKILL.md`), `kilo` (native: `.kilo/agents/*.md` + `.kilo/skills/*/SKILL.md`), `pi` (native subagents with primary-agent lowering to `.pi/agents/*.md` and `.pi/skills/*/SKILL.md`), `factory` (native: `.factory/droids/*.md` + `.factory/skills/*/SKILL.md`, with the primary agent additionally exposed as an entry-point skill, [ADR 0034](../adr/0034-factory-droid-entry-point-skill.md)), `warp` (fallback role-skill lowering to `.warp/skills/`), `zcode` (native: `.zcode/agents/*.md` + `.zcode/skills/*/SKILL.md`, with primary agents lowered to `.zcode/commands/*.md`), and `devin` (native: `.devin/agents/*/AGENT.md` + `.devin/skills/*/SKILL.md`, with primary agents lowered to a skill) are implemented and registered. All twelve declared targets are covered. `kyber-weave squad doctor` reports which
   targets are covered.
 - **Authority and self-deployment boundary**: `products/kyber-squad/` is canonical and package
-  authority. Root `.github/agents/`, `.github/skills/`, `.kyber-weave/squad.lock.yml`, and
-  `.kyber-weave/squad.receipt.json` are an intentional stale self-deployment, not inputs to source
-  loading or packaging. They remain untouched until a human refreshes them after a fresh release
-  candidate.
+  authority. The repository carries no project-level self-deployment: root `.github/agents/`,
+  `.github/skills/`, `.kyber-weave/squad.lock.yml`, and `.kyber-weave/squad.receipt.json` were
+  removed.
 
 ---
 
@@ -667,6 +818,7 @@ Regression pins live in `tests/KyberWeave.Tests/SquadCanonicalContentTests.cs` a
 - [ADR 0021](../adr/0021-zcode-command-lowering-and-resource-relocation.md) — ZCode command lowering and resource relocation
 - [ADR 0022](../adr/0022-antigravity-native-agents.md) — Native per-agent Antigravity rendering and cross-target capability-not-isolable degradation
 - [ADR 0028](../adr/0028-devin-target-scoped-authoring-capability-profiles.md) — Devin target-scoped authoring profiles and the conductor pre-creation fallback
+- [ADR 0037](../adr/0037-squad-state-in-user-home.md) — Lock and receipt state in the user home, the project registry, the global anchor, and migration
 - [Kyber-Squad adoption guide](onboarding.md) — CLI commands, flags, and workflows
 - [Requirements and degradation contract](requirements.md) — KS-001 through KS-008 specifications and the conductor execution circuit-breaker
 - [Configuration](../configuration.md) — repository configuration options
