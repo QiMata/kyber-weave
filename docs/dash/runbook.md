@@ -6,7 +6,7 @@ status: current
 component: KyberDash
 source-root: dash
 owner: dpalfery
-last-reviewed: 2026-10-14
+last-reviewed: 2026-10-16
 code-refs:
   - registerKyberCommands
   - refreshHarnessSources
@@ -133,22 +133,28 @@ KyberDash maintains all normalized data in SQLite at `~/.kyberdash/canon.db` ([A
 
 ### 1. Starting the OTLP Ingest Receiver
 
-The web dashboard does not start the collector automatically. Ingest is a separate command
-that listens for OTLP over HTTP on `127.0.0.1:4318` at `POST /v1/traces` and `POST /v1/logs`,
-then persists to `canon.db`. Logs enrich their correlated span-shaped record ([ADR 0009](../adr/0009-multi-signal-ingestion-span-shaped-record.md)):
+There is exactly one KyberDash engine per user ([ADR 0039](../adr/0039-single-instance-engine.md)),
+and the OTLP receiver is its child, listening for OTLP over HTTP on `127.0.0.1:4318` at
+`POST /v1/traces` and `POST /v1/logs`, then persisting to `canon.db`. Logs enrich their
+correlated span-shaped record ([ADR 0009](../adr/0009-multi-signal-ingestion-span-shaped-record.md)).
+
+The engine holds a local IPC endpoint (`~/.kyberdash/engine.sock`, a named pipe on Windows)
+and records itself in `~/.kyberdash/engine.json` (pid, executable, version, URL). The CLI and
+the tray both ensure-or-attach through it, from the same executable:
 
 ```bash
-# Start receiver via the kyber command group
-node dash/dist/cli.js kyber otel --port 4318 --host 127.0.0.1
+# Start the engine, or attach to the one that is running (exit 0 either way)
+kyberdash web --no-open
 
-# Backward-compatible alias
-node dash/dist/cli.js otel --port 4318
+# Turn the hosted receiver on and ensure the engine; never binds a second receiver
+kyberdash otel
 ```
 
-Run that command when you want a standalone collector. When a `kyberdash web` server is
-running, `ReceiverHost` (`dash/src/jobs/receiver-host.ts`) hosts the same receiver as a child
-of that server instead, and `settings.receiver.hosted` ([§2d](#2d-shared-settings-and-pause))
-records which of the two the current setup uses.
+A second `kyberdash web` attaches to the running engine instead of starting another. An
+engine from a different build is asked to shut down and replaced by the newer one. A custom
+`--port` or `--host` on `kyberdash otel` is refused: the receiver is `127.0.0.1:4318`.
+`kyberdash otel --serve` is the internal form the engine uses for its receiver child; do not
+start it by hand.
 
 ### 1a. Enabling Claude Code content on the sender
 
@@ -244,7 +250,7 @@ Capturable versus inherent-empty Claude buckets are recorded in the
 [telemetry inventory](telemetry-inventory.md#claude-desktop-and-cli-file-synth-parts-issue-216).
 
 Coverage window persistence: every refresh run records its window in
-`refresh_run.history_weeks` (schema 15). The value is the `--history-weeks` argument of
+`refresh_run.history_weeks` (added in schema 16). The value is the `--history-weeks` argument of
 that run (default 2). Rows written before window tracking read as `null`, which surfaces
 render as "coverage window unknown (recorded before window tracking)" — never as 2 and
 never as 0, per [honest unobservability](../rules/honest-unobservability.md). A scoped
@@ -341,6 +347,10 @@ The dashboard reaches it at `POST /api/kyber/import-history` with a body carryin
 control; the tray reaches the same route from its popover.
 
 ### 2d. Shared settings and Pause
+
+For the user-facing configure surface — the shipped `kyberdash dash settings` commands and
+the dashboard's Settings drawer — see the [adoption guide](onboarding.md#configure). This
+section is the operator detail beneath it.
 
 Five settings, stored in `canon.db` metadata (`dash/src/settings/shared-settings.ts`), so a
 change made in one place is the change every other surface sees. Reads fail closed: an
@@ -567,7 +577,7 @@ re-attributing live Antigravity rows after an adapter change).
 
 Tool execution outputs captured during file or OTLP ingest are bounded to 64KiB (`MAX_TOOL_RESULT_BYTES = 65_536`) in stored parts (`part: 'tool_result_content'`). Truncated records carry `truncated: true`, with pre-truncation byte length stored in `attributes['gen_ai.tool.result_bytes']`.
 
-When reader extraction or normalization contracts change (such as tool extraction in #180 or request/response turn deduplication in #232), the source's `PARSER_CONTRACT_VERSION` in `dash/src/refresh/registry.ts` is incremented. Running `kyber-weave dash refresh` detects that existing `source_checkpoint` entries carry an older contract version, marks them stale, and automatically re-reads and re-synthesizes historical sessions without requiring manual database deletion.
+When reader extraction or normalization contracts change (such as tool extraction in #180 or request/response turn deduplication in #232), the source's `PARSER_CONTRACT_VERSION` in `dash/src/refresh/registry.ts` is incremented. Running `kyberdash dash refresh` detects that existing `source_checkpoint` entries carry an older contract version, marks them stale, and automatically re-reads and re-synthesizes historical sessions without requiring manual database deletion.
 
 > **Warning:** unscoped `kyber renormalize` quarantines every row the
 > fingerprint vote cannot claim, including file-sourced rows (`codeburn/*`),

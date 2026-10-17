@@ -12,6 +12,7 @@
 
 import {
   declaredFiles,
+  exporterResolutionFor,
   fileIdFor,
   loadReceiptLenient,
   presentKeys,
@@ -164,6 +165,20 @@ type FileAnalysis = {
   /** on/off/partial for an applicable, readable, parseable file; unknown otherwise. */
   state: 'on' | 'off' | 'partial' | 'unknown' | undefined
   unreadable?: { path: string; code: string }
+  /**
+   * The resolved-exporter failure for this file, when its harness declares a
+   * resolver and the exporter it will get does not deliver. Key presence alone
+   * cannot express this: Copilot's keys can be exactly right while the
+   * extension still uses the dev-null file exporter.
+   */
+  exporterWarning?: CaptureStatusWarning
+  /**
+   * The line naming the exporter this file's harness will resolve, surfaced
+   * even when it raises no warning. A resolver that cannot judge a factor it
+   * needs (Copilot's environment override, invisible to the status route)
+   * withholds the verdict here rather than inventing one.
+   */
+  exporterLine?: string
 }
 
 function analyseManagedFile(
@@ -199,7 +214,7 @@ function analyseManagedFile(
     return { status: { ...base, missingKeys: [...expectedKeys] }, state: 'off' }
   }
   const content = read.content
-  if (!isBlockFormat(file) && revertJsonEdits(content, {}).refused !== undefined) {
+  if (!isBlockFormat(file) && revertJsonEdits(content, {}, file.literalKeyPrefixes).refused !== undefined) {
     return { status: base, state: 'unknown' }
   }
   // The union view: the CLI text status lists only the always-written keys, the
@@ -220,7 +235,7 @@ function analyseManagedFile(
   if (record !== undefined) {
     const entries = isBlockFormat(file)
       ? revertBlockEdits(content, record.keys, file.format as 'toml' | 'yaml').drift
-      : revertJsonEdits(content, record.keys).drift
+      : revertJsonEdits(content, record.keys, file.literalKeyPrefixes).drift
     if (entries.length > 0) {
       drift = entries.map((entry) => ({
         key: entry.key,
@@ -229,9 +244,19 @@ function analyseManagedFile(
       }))
     }
   }
+  // A resolution may withhold a verdict it cannot make (the status route
+  // cannot see the editor's environment), and it then carries no warning text:
+  // a warning with nothing to say is not a warning.
+  const resolution = exporterResolutionFor(file, present)
+  const exporterWarning =
+    resolution !== undefined && !resolution.delivering && resolution.warning !== ''
+      ? { code: 'exporter-not-delivering', text: resolution.warning }
+      : undefined
   return {
     status: { ...base, presentKeys: presentList, missingKeys: missing, drift },
     state,
+    exporterLine: resolution?.line,
+    exporterWarning,
   }
 }
 
@@ -335,6 +360,19 @@ function buildOne(
   const configWarnings: CaptureStatusWarning[] = statusWarningLines(writer, ctx.home, ctx.env).map(
     (line) => ({ code: 'config-warning', text: line.replace(/^\s*warn: /, '') }),
   )
+  // Both editions can resolve the same failure; the report names it once.
+  const exporterWarnings = analyses
+    .flatMap((analysis) => (analysis.exporterWarning === undefined ? [] : [analysis.exporterWarning]))
+    .filter(
+      (warning, index, all) => all.findIndex((other) => other.text === warning.text) === index,
+    )
+  // The resolved exporter belongs on the line even when it raises no warning:
+  // a resolver that withholds a verdict it cannot make (the status route
+  // cannot see the editor's environment) still has to say what it resolved, or
+  // the dashboard would show nothing about the exporter at all.
+  const exporterLines = analyses
+    .flatMap((analysis) => (analysis.exporterLine === undefined ? [] : [analysis.exporterLine]))
+    .filter((line, index, all) => all.indexOf(line) === index)
   return {
     id: writer.id,
     displayName: writer.displayName,
@@ -344,9 +382,9 @@ function buildOne(
     state: combineStates(analyses.map((analysis) => analysis.state)),
     receipt: recorded ? 'recorded' : 'absent',
     files: analyses.map((analysis) => analysis.status),
-    warnings: [...endpointWarnings(files, analyses, ctx), ...configWarnings],
+    warnings: [...endpointWarnings(files, analyses, ctx), ...configWarnings, ...exporterWarnings],
     manualSteps: manualStepsFor(writer, ctx.endpoint),
-    statusLines: [],
+    statusLines: exporterLines,
   }
 }
 

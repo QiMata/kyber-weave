@@ -5,7 +5,7 @@ doc-type: onboarding
 component: KyberSquad
 source-root: src/KyberWeave.Core/Squad
 owner: dpalfery
-last-reviewed: 2026-10-14
+last-reviewed: 2026-10-16
 status: current
 decided-by:
   - adr/0019-pi-native-subagents-and-primary-lowering
@@ -22,7 +22,7 @@ code-refs:
 # Kyber-Squad adoption and usage guide
 
 `kyber-weave squad` is the unified lifecycle and deployment control plane for agent ecosystems.
-It manages the installation, update, inspection, and uninstallation of **21 canonical agents** and
+It manages the installation, update, inspection, and uninstallation of **22 canonical agents** and
 **24 canonical skills**, with transactional recovery and state governance. Twelve harness targets
 are declared; all twelve are currently implemented and registered.
 
@@ -706,8 +706,22 @@ Use `pr-review-fix-comments` when you prefer step-by-step approval for each fix.
 
 ## Delivery circuit-breaker
 
+For delivery intake, a concrete failure is diagnosed before routing by artifact,
+even when the request also names an explicit plan/spec choice or an existing plan.
+The conductor preserves that choice and existing artifact for the post-diagnosis
+handoff. An explicit choice without an undiagnosed failure skips the intake assessment.
+For a nontrivial diagnosed defect in a Ready task, the architect assesses whether the
+approved contract still fits. Required revisions return to the artifact author and
+reopen approval before implementation; unchanged contracts return to the original worker.
+
+The conductor keeps the same developer session for a task's review fixes and
+verification when the harness can resume it. The reviewer remains independent and
+can retain its own review history between passes. Stateless harnesses receive a
+self-contained recovery brief with previous findings, decisions, and failed approaches.
+The conductor records session handles and replacement reasons on the execution artifact.
+
 Deployed `conductor`, `csharp-dev`, `test-dev`, and `github-devops` agents stop
-unbounded test-fix loops: 3 incremental fixes per worker invocation, 2 conductor
+unbounded test-fix loops: 3 incremental fixes per implementation or rework dispatch, 2 conductor
 rework dispatches per failure cluster per run, A→B→A oscillation detection, and
 escalation through `STATUS: ESCALATION` / `ESCALATION: circuit-breaker`. Caps,
 cluster identity, JEV checkpoints, and the closed trigger set are in
@@ -736,10 +750,10 @@ Running `squad pack` outside the repository root fails immediately with a diagno
 
 Both archive formats recurse through each skill directory. They contain all 24 canonical
 `SKILL.md` files plus the 68 retained supplemental resources, and retained local skill references
-must resolve in the extracted package. The APM archive additionally contains the 21 canonical
+must resolve in the extracted package. The APM archive additionally contains the 22 canonical
 agents with their 10 owned reference files; the Agent Plugins archive never contains agents or
 agent-owned resources. A fresh deployment renders every file an owner's Markdown links reach
-beside its principal — 122 files on Copilot today — with authored relative links resolving inside
+beside its principal — 123 files on Copilot today — with authored relative links resolving inside
 the target output; every skill resource reaches this render except
 `skills/setup-dev-environment/agents/openai.yaml`, which stays packaged-only Codex skill-UI
 metadata. The tracked root `.github/` self-deployment predates resource delivery and is refreshed
