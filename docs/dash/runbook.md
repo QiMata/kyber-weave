@@ -6,7 +6,7 @@ status: current
 component: KyberDash
 source-root: dash
 owner: dpalfery
-last-reviewed: 2026-10-14
+last-reviewed: 2026-10-16
 code-refs:
   - registerKyberCommands
   - refreshHarnessSources
@@ -250,7 +250,7 @@ Capturable versus inherent-empty Claude buckets are recorded in the
 [telemetry inventory](telemetry-inventory.md#claude-desktop-and-cli-file-synth-parts-issue-216).
 
 Coverage window persistence: every refresh run records its window in
-`refresh_run.history_weeks` (schema 15). The value is the `--history-weeks` argument of
+`refresh_run.history_weeks` (added in schema 16). The value is the `--history-weeks` argument of
 that run (default 2). Rows written before window tracking read as `null`, which surfaces
 render as "coverage window unknown (recorded before window tracking)" — never as 2 and
 never as 0, per [honest unobservability](../rules/honest-unobservability.md). A scoped
@@ -347,6 +347,10 @@ The dashboard reaches it at `POST /api/kyber/import-history` with a body carryin
 control; the tray reaches the same route from its popover.
 
 ### 2d. Shared settings and Pause
+
+For the user-facing configure surface — the shipped `kyberdash dash settings` commands and
+the dashboard's Settings drawer — see the [adoption guide](onboarding.md#configure). This
+section is the operator detail beneath it.
 
 Five settings, stored in `canon.db` metadata (`dash/src/settings/shared-settings.ts`), so a
 change made in one place is the change every other surface sees. Reads fail closed: an
@@ -573,7 +577,7 @@ re-attributing live Antigravity rows after an adapter change).
 
 Tool execution outputs captured during file or OTLP ingest are bounded to 64KiB (`MAX_TOOL_RESULT_BYTES = 65_536`) in stored parts (`part: 'tool_result_content'`). Truncated records carry `truncated: true`, with pre-truncation byte length stored in `attributes['gen_ai.tool.result_bytes']`.
 
-When reader extraction or normalization contracts change (such as tool extraction in #180 or request/response turn deduplication in #232), the source's `PARSER_CONTRACT_VERSION` in `dash/src/refresh/registry.ts` is incremented. Running `kyber-weave dash refresh` detects that existing `source_checkpoint` entries carry an older contract version, marks them stale, and automatically re-reads and re-synthesizes historical sessions without requiring manual database deletion.
+When reader extraction or normalization contracts change (such as tool extraction in #180 or request/response turn deduplication in #232), the source's `PARSER_CONTRACT_VERSION` in `dash/src/refresh/registry.ts` is incremented. Running `kyberdash dash refresh` detects that existing `source_checkpoint` entries carry an older contract version, marks them stale, and automatically re-reads and re-synthesizes historical sessions without requiring manual database deletion.
 
 > **Warning:** unscoped `kyber renormalize` quarantines every row the
 > fingerprint vote cannot claim, including file-sourced rows (`codeburn/*`),
