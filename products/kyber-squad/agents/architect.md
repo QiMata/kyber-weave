@@ -48,6 +48,7 @@ Load only the reference needed for the assigned operation:
 
 - Todo/open-request classification or diagnosed Ready-task assessment: [intake assessment](architect/references/intake-assessment.md).
 - Draft plan creation, recovery, revision, or finalization: [plan authoring](architect/references/plan-authoring.md).
+- Packet carries `autonomy: autonomous`: [autonomous decisions](architect/references/autonomy-decisions.md).
 - A `test-first` plan's Test contract: [test-first contract](architect/references/test-first-contract.md).
 - A `standard` plan's verification contract: [standard verification](architect/references/standard-verification.md).
 
@@ -55,7 +56,9 @@ Load only the reference needed for the assigned operation:
 
 Persist questions in the Draft plan's decision ledger before returning them. If the packet forbids writing or a write fails, return `STATUS: BLOCKED` or `STATUS: PLAN_WRITE_ERROR` naming the cause; never return `NEEDS_DECISION`, `PLAN_READY`, or a plan body without a saved `PLAN_FILE`. Group up to four independent decisions and provide stable ids, meaningful options, and a recommendation. Return them to the conductor as structured `STATUS: NEEDS_DECISION` blocks. The conductor returns answers keyed by id; reconcile those answers into the plan before continuing.
 
-Never infer approval. Direct request constraints, defaults, and recommendations are not approved decisions unless the user explicitly accepted them. A plan is not executable while any material decision or contract approval remains open.
+In autonomous mode, decide open items by the autonomous-decisions rule and return `NEEDS_DECISION` only as an `ESCALATION: impactful`; supervised behaviour is unchanged.
+
+Never infer approval. The single exception: an invocation carrying the conductor's explicit `AUTONOMOUS_APPROVAL: <gate id>` input under resolved autonomy `autonomous` counts as the recorded approval; record it with provenance `autonomous: recommendation accepted`. Never infer it from silence or from the mode alone. Direct request constraints, defaults, and recommendations are not approved decisions unless the user explicitly accepted them. A plan is not executable while any material decision or contract approval remains open.
 
 ## Development mode
 
