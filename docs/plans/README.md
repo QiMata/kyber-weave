@@ -4,7 +4,7 @@ title: Kyber-Weave Plan Inventory
 doc-type: index
 status: current
 owner: dpalfery
-last-reviewed: 2026-10-22
+last-reviewed: 2026-10-23
 ---
 
 # Kyber-Weave Plan Inventory
@@ -27,7 +27,10 @@ Closeout explicitly distinguishes between two waiver categories:
 
 ## Active Plans
 
-No plans are active.
+| Plan | Status | Date | Component / Mode | Goal |
+|---|---|---|---|---|
+| [2026-10-23-pi-renderer-network-read-mcp.md](2026-10-23-pi-renderer-network-read-mcp.md) | Ready — decision-complete (D1 owner-decided Option A; D2–D6 `autonomous: recommendation accepted` or low-confidence, provenance per row); `docs validate` / `docs drift` outstanding G3 (no process tool in the authoring harness — conductor runs both before execution); live fail-closed MCP-grant gate G2/T4 sequenced before closeout | 2026-10-23 | KyberSquad / test-first, autonomous | Lower `network.read: allow` onto the built-in `mcp` tool in `PiRenderer` (owner decision Option A): eight-tool vocabulary + `ToolOrder` append, drop the `network.read` `permission-not-expressible` branch, keep `process.execute: deny` (no shell for read-only), keep `network.publish` unmapped and `extensions: false` unchanged; ADR 0019 amended in place; contract tests strengthened with an explicit research-agent `read, grep, find, ls, mcp` pin; in-the-wild renders overwritten on next `squad update` (local hand patch superseded — `bash` withheld again, `mcp` arrives canonically); `scripts/update-loop.sh` in gates (needs node/npm on PATH) |
+| [2026-10-23-opencode-context-capture-kyberdash.md](2026-10-23-opencode-context-capture-kyberdash.md) | Ready — decision-complete (D1–D7, AP1 recorded `autonomous: recommendation accepted` per the bug-crusher escalation packet); `docs validate` / `docs drift` outstanding G3 (no process tool in the authoring harness — conductor runs both before execution); owner live-capture gate open (G2) | 2026-10-23 | KyberDash / test-first, autonomous | Capture opencode's system prompt, tool definitions, and skills through the in-repo plugin's context hook (v2 `session.context`, v1 `chat.params`/`experimental.chat.system.transform`/`tool.definition` fallback ladder, T0-pinned verbatim): a new loadable entry module with a sender-owned content-consent gate, envelope contract bump `'1'`→`'2'` with `opencode.context.*` keys, adapter bucketing to `system_prompt`/`tool_definitions`, a new `opencode.context.skills` listing source in `canon/skills.ts`, tests, and governed docs. The user's proposed standalone plugin (raw JSON to `127.0.0.1:8080`) is rejected: wrong port, wrong body, wrong route. |
 
 Earlier history: pipeline T9 and spine S-docs harvested 2026-09-13 into [dash/architecture.md](../dash/architecture.md), [dash/runbook.md](../dash/runbook.md), [dash/telemetry-inventory.md](../dash/telemetry-inventory.md), [ADR 0016](../adr/0016-kyberdash-harness-source-refresh.md), and [ADR 0018](../adr/0018-kyberdash-content-retention-purge.md). ADRs 0012–0015 remain the spine harvest (0014 notes that `kyber purge-content` was not shipped). Residual risks (T8 live-source coverage, findings client-side harness filter) live on the archived plans — they are not shipped claims.
 

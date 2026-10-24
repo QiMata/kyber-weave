@@ -10,6 +10,9 @@
 
 import type { OpencodeHookEvent } from '../plugin.js'
 import {
+  OPENCODE_CONTEXT_SKILLS_KEY,
+  OPENCODE_CONTEXT_SYSTEM_KEY,
+  OPENCODE_CONTEXT_TOOLS_KEY,
   OPENCODE_CONTRACT_VERSION,
   OPENCODE_CONTRACT_VERSION_KEY,
   OPENCODE_SESSION_ID_KEY,
@@ -107,6 +110,26 @@ function eventToSpan(event: OpencodeHookEvent, index: number): OtlpWireSpan {
   }
   if (event.spanId !== undefined) {
     attributes.push({ key: 'span.id', value: { stringValue: event.spanId } })
+  }
+  // T4 context content (envelope v2): carried only when the event names it,
+  // so absent fields stay absent — never empty-string padding.
+  if (event.systemPrompt !== undefined && event.systemPrompt !== '') {
+    attributes.push({ key: OPENCODE_CONTEXT_SYSTEM_KEY, value: { stringValue: event.systemPrompt } })
+  }
+  if (event.toolsText !== undefined && event.toolsText !== '') {
+    attributes.push({ key: OPENCODE_CONTEXT_TOOLS_KEY, value: { stringValue: event.toolsText } })
+  }
+  if (Array.isArray(event.skills) && event.skills.length > 0) {
+    attributes.push({
+      key: OPENCODE_CONTEXT_SKILLS_KEY,
+      value: { stringValue: JSON.stringify(event.skills) },
+    })
+  }
+  if (event.model !== undefined && event.model !== '') {
+    attributes.push({ key: 'opencode.model.id', value: { stringValue: event.model } })
+  }
+  if (event.agent !== undefined && event.agent !== '') {
+    attributes.push({ key: 'opencode.agent', value: { stringValue: event.agent } })
   }
 
   const started = nanosOf(event.timestamp)
