@@ -155,6 +155,28 @@ describe('opencode-loadable shape (T0 pin)', () => {
   })
 })
 
+describe('session.context entry boundary (review PR #425 finding, round 2)', () => {
+  it('drops an identity-less payload: no event emitted', async () => {
+    const handlers = createEntryHandlers({
+      env: {},
+      now: () => '2026-10-23T00:00:00.000Z',
+    })
+    await handlers['session.context']({} as unknown as Parameters<typeof handlers['session.context']>[0])
+    expect(handlers.installed.plugin.events).toHaveLength(0)
+    expect(handlers.installed.mappedSpans).toHaveLength(0)
+  })
+
+  it('drops a toHookPayload identity-less input: no event emitted', async () => {
+    const handlers = createEntryHandlers({
+      env: {},
+      now: () => '2026-10-23T00:00:00.000Z',
+    })
+    await handlers['session.context'](toHookPayload({ model: 'm' }))
+    expect(handlers.installed.plugin.events).toHaveLength(0)
+    expect(handlers.installed.mappedSpans).toHaveLength(0)
+  })
+})
+
 describe('toHookPayload identity (review PR #425 finding 1, RED)', () => {
   it('omits the identity key when the input names no session', () => {
     const payload = toHookPayload({ model: 'm' })

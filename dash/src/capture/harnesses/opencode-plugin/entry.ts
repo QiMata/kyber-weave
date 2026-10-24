@@ -96,8 +96,16 @@ export function createEntryHandlers(options: EntryHandlersOptions = {}): EntryHa
       installed.plugin.hooks['turn.end'](gate(payload)),
     'session.end': (payload: OpencodeHookPayload) =>
       installed.plugin.hooks['session.end'](gate(payload)),
-    'session.context': (payload: OpencodeHookPayload) =>
-      installed.plugin.context(gate(payload)),
+    'session.context': (payload: OpencodeHookPayload) => {
+      // Round-2 review (PR #425): a session.context without a session is
+      // unattributable — it would merge under trace:undefined with
+      // {stringValue: undefined} on the wire. Drop it at the entry
+      // boundary instead of emitting (no drop counter exists on this
+      // path, so the drop is a silent return; never fails the host).
+      const gated = gate(payload)
+      if (typeof gated.sessionId !== 'string' || gated.sessionId === '') return Promise.resolve()
+      return installed.plugin.context(gated)
+    },
     installed,
   }
   return handlers
