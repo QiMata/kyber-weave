@@ -47,6 +47,21 @@ describe('OTLP sender carries T4 context fields onto the wire span', () => {
     expect(attributes.get('opencode.agent')).toEqual({ stringValue: 'build' })
   })
 
+  it('drops non-string content values instead of emitting invalid OTLP (review PR #425 finding 2, RED)', () => {
+    const attributes = attributeMap({
+      kind: 'session.context',
+      sessionId: 'ses_t4_coerce',
+      timestamp: '2026-10-23T00:00:00.000Z',
+      systemPrompt: 42 as unknown as string,
+      toolsText: { name: 'read' } as unknown as string,
+      model: true as unknown as string,
+    })
+    expect(attributes.has('opencode.context.system')).toBe(false)
+    expect(attributes.has('opencode.context.tools')).toBe(false)
+    expect(attributes.has('opencode.model.id')).toBe(false)
+    expect(attributes.get('session.id')).toEqual({ stringValue: 'ses_t4_coerce' })
+  })
+
   it('omits context attributes when the event carries no content', () => {
     const attributes = attributeMap({
       kind: 'session.start',

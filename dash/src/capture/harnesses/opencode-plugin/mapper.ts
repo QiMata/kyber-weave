@@ -144,7 +144,20 @@ export function mapOpencodePayloadToAttributes(
   if (nonEmpty(payload.systemPrompt)) attributes[OPENCODE_CONTEXT_SYSTEM_KEY] = payload.systemPrompt
   if (nonEmpty(payload.toolsText)) attributes[OPENCODE_CONTEXT_TOOLS_KEY] = payload.toolsText
   if (typeof payload.skills === 'string') {
-    if (nonEmpty(payload.skills)) attributes[OPENCODE_CONTEXT_SKILLS_KEY] = payload.skills
+    if (nonEmpty(payload.skills)) {
+      // A serialized empty list measures the same none as an absent list:
+      // drop it so `[]` and `'[]'` stay one measurability. Malformed text
+      // stays stamped — the adapter reports it under its named reason.
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(payload.skills)
+      } catch {
+        parsed = undefined
+      }
+      if (!(Array.isArray(parsed) && parsed.length === 0)) {
+        attributes[OPENCODE_CONTEXT_SKILLS_KEY] = payload.skills
+      }
+    }
   } else if (Array.isArray(payload.skills) && payload.skills.length > 0) {
     attributes[OPENCODE_CONTEXT_SKILLS_KEY] = JSON.stringify(payload.skills)
   }

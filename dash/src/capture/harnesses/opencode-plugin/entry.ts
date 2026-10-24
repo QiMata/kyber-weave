@@ -117,11 +117,16 @@ export type OpencodePluginSetupContext = {
  * inputs pass through verbatim.
  */
 export function toHookPayload(input: Record<string, unknown>): OpencodeHookPayload {
-  const payload = input as unknown as OpencodeHookPayload & { sessionID?: unknown }
-  return {
-    ...payload,
-    sessionId: payload.sessionId ?? (typeof payload.sessionID === 'string' ? payload.sessionID : ''),
-  } as OpencodeHookPayload
+  const { sessionID, ...rest } = input as Record<string, unknown> & { sessionID?: unknown }
+  const rawId = (rest as { sessionId?: unknown }).sessionId
+  const sessionId =
+    typeof rawId === 'string' && rawId !== ''
+      ? rawId
+      : typeof sessionID === 'string' && sessionID !== ''
+        ? sessionID
+        : undefined
+  const { sessionId: _dropped, ...withoutId } = rest as Record<string, unknown>
+  return (sessionId === undefined ? { ...withoutId } : { ...withoutId, sessionId }) as OpencodeHookPayload
 }
 
 /**

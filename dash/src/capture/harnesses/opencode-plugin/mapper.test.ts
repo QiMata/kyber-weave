@@ -268,6 +268,30 @@ describe('opencode plugin span mapper carries T0 context fields onto envelope v2
     expect(attributes['opencode.context.skills']).toBe('["plan","review"]')
   })
 
+  it("drops an empty skills array and its '[]' serialization alike (review PR #425 finding 3, RED)", () => {
+    const fromArray = mapOpencodePayloadToAttributes({
+      ...MODEL_PAYLOAD,
+      spanId: 'span-skills-empty-array',
+      skills: [],
+    })
+    expect('opencode.context.skills' in fromArray).toBe(false)
+    const fromString = mapOpencodePayloadToAttributes({
+      ...MODEL_PAYLOAD,
+      spanId: 'span-skills-empty-string',
+      skills: '[]',
+    })
+    expect('opencode.context.skills' in fromString).toBe(false)
+  })
+
+  it('keeps malformed skills stamped for the named not-measurable path (review PR #425 finding 3, RED)', () => {
+    const attributes = mapOpencodePayloadToAttributes({
+      ...MODEL_PAYLOAD,
+      spanId: 'span-skills-malformed',
+      skills: 'not-json',
+    })
+    expect(attributes['opencode.context.skills']).toBe('not-json')
+  })
+
   it('leaves context keys absent when the payload names no content', () => {
     const attributes = mapOpencodePayloadToAttributes(MODEL_PAYLOAD)
 

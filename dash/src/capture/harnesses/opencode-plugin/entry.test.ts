@@ -14,6 +14,7 @@ import entryDefault, {
   applyContextConsent,
   createEntryHandlers,
   readContextConsent,
+  toHookPayload,
 } from './entry.js'
 import type { OpencodeHookEvent } from './plugin.js'
 import { OPENCODE_PLUGIN_ID } from './plugin.js'
@@ -151,5 +152,19 @@ describe('opencode-loadable shape (T0 pin)', () => {
     const hook = vi.fn(() => Promise.resolve({ dispose: () => Promise.resolve() }))
     await KyberdashOpencodePlugin.setup({ session: { hook } } as never)
     expect(hook).toHaveBeenCalledWith('context', expect.any(Function))
+  })
+})
+
+describe('toHookPayload identity (review PR #425 finding 1, RED)', () => {
+  it('omits the identity key when the input names no session', () => {
+    const payload = toHookPayload({ model: 'm' })
+    expect('sessionId' in payload).toBe(false)
+    expect('sessionID' in payload).toBe(false)
+  })
+
+  it('never emits both sessionID and sessionId spellings', () => {
+    const payload = toHookPayload({ sessionID: 'ses-dual' } as Record<string, unknown>)
+    expect('sessionID' in payload).toBe(false)
+    expect(payload.sessionId).toBe('ses-dual')
   })
 })
